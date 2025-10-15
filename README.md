@@ -19,7 +19,6 @@ WiseDiff is a Python script for monitoring changes in school timetables (ICS fil
    uv sync
    ```
 
-   ```
 3. Install Playwright browsers:
    ```bash
    playwright install
