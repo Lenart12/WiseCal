@@ -1,0 +1,12 @@
+[project]
+name = "urnik"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "discord-webhook>=1.4.1",
+    "dotenv>=0.9.9",
+    "openai>=2.3.0",
+    "playwright>=1.55.0",
+]
