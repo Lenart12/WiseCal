@@ -54,7 +54,10 @@ def get_changes(diff_output):
                     "- Opis spremembe naj bo kratek in v berljivem formatu primeren za obvestilo študentom. Opisa nikoli ne podaj z dvopičjem (npr. NE 'Dodano: Nov termin' ampak 'Dodan je nov termin').\n"
                     "- Tip dogodka izlušči iz opisa predmeta (DESCRIPTION), običajno je to kratica kot RV, PR, LV. in ga podaj kot KRATICA (Opis) npr. PR (Predavanja)\n"
                     "- Seznam vseh kratic: PR, PR 1, itd. = predavanja; SV, SV 1, itd. = seminarske vaje; LV, LV 1, itd. = laboratorijske vaje; SE, SE 1, itd. = seminar; RV, RV 1, itd. = računalniške vaje"
-                    "- Če je isti dogodek nekje odstranjen in nato dodan na drugem mestu, zabeleži to kot ena sprememba istega dogodka (v primeru, da se sploh razlikujeta lokacija ali termin).\n"
+                    "- Kratice, ki imajo v sebi številko (npr. RV 1) pomenijo, da gre za več skupin istega tipa dogodka. V tem primeru je potrebno vključiti številko skupine v tip dogodka (npr. RV 1 (Računalniške vaje skupina 1)).\n"
+                    "- Če je pri spremembi termina samo ura in ne datum, pri izpisu spremembe navedi datum samo enkrat (npr. Termin se je premaknil iz petek, 24. 10. 2025, 17:00–19:00 na 18:00–20:00.)\n"
+                    "- Če je več različnih skupin ista sprememba (npr. premik termina), zabeleži to kot ena spremembo z navedbo vseh vpletenih skupin (npr. Skupini 1 se je termin premaknil iz ... . Skupini 2 se je termin premaknil iz ... ).\n"
+                    "- Če je isti dogodek (predmet, lokacija, tip, skupina) nekje odstranjen in nato dodan na drugem mestu, zabeleži to kot ena sprememba istega dogodka (v primeru, da se sploh razlikujeta lokacija ali termin).\n"
                     "- Če je termin dogodka večkrat spremenjen na isto novo vrednost, zabeleži samo eno spremembo (npr. od zdaj naprej se bo dogodek redno pojavljal ob novem terminu).\n"
                     "Diff vsebina:\n" + diff_output
                 ),
