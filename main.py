@@ -7,6 +7,7 @@ import subprocess
 import openai
 import os
 import discord_webhook
+import time
 
 def download_ical(api_url, timetable, download_path):
     with sync_playwright() as p:
@@ -163,9 +164,17 @@ def main():
             print("No changes detected.")
             new_tt.unlink()  # Remove the new file if no changes
         elif diff.returncode == 1:
+            diff_output = diff.stdout
+
+            diff_dir = args.storage_dir / 'diffs'
+            diff_dir.mkdir(exist_ok=True)
+            timestamp = int(time.time())
+            diff_file = diff_dir / f"{tt_filename}_{timestamp}.diff"
+            diff_file.write_text(diff_output)
+
             # print("Changes detected:")
             # print(diff.stdout)
-            changes = get_changes(diff.stdout)
+            changes = get_changes(diff_output)
             # print("Detected changes:")
             # print(changes)
             changes_webhook(os.getenv("DISCORD_WEBHOOK_URL"), changes, args.timetable_name, args.api_url, args.timetable)
