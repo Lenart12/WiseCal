@@ -141,9 +141,11 @@ def main():
     parser.add_argument(
         "-n", "--timetable-name", type=str, required=True, help="Human-readable name of the timetable (e.g., 'FERI RIT MAG 1. letnik')"
     )
-    parser.add_argument(
-        "-w", "--webhook-url", type=str, required=True, help="Discord webhook URL"
-    )
+
+    if "OPENAI_API_KEY" not in os.environ:
+        parser.error("OPENAI_API_KEY environment variable is not set.")
+    elif not os.getenv("DISCORD_WEBHOOK_URL"):
+        parser.error("DISCORD_WEBHOOK_URL environment variable is not set.")
 
     args = parser.parse_args()
 
@@ -166,7 +168,7 @@ def main():
             changes = get_changes(diff.stdout)
             # print("Detected changes:")
             # print(changes)
-            changes_webhook(args.webhook_url, changes, args.timetable_name, args.api_url, args.timetable)
+            changes_webhook(os.getenv("DISCORD_WEBHOOK_URL"), changes, args.timetable_name, args.api_url, args.timetable)
             new_tt.rename(old_tt)  # Update the old file with the new one
         else:
             print("Error during diff operation:")
