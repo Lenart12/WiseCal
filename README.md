@@ -23,6 +23,7 @@ WiseCal is a web application that automatically syncs your Wise TT school timeta
    ```bash
    OAUTH_CLIENT_SECRETS='{"web":{"client_id":"...","client_secret":"..."}}'
    FLASK_SECRET_KEY=your-secret-key
+   TRUSTED_PROXY_COUNT=1
    ```
 
 3. Build and run with Docker Compose:
@@ -80,6 +81,7 @@ The application will be available at `http://localhost:5187`.
 | `FLASK_SECRET_KEY` | Secret key for Flask sessions | Yes |
 | `WISECAL_DATA_DIR` | Directory for storing user data (default: `./wc_data`) | No |
 | `OAUTHLIB_INSECURE_TRANSPORT` | Set to `1` for development without HTTPS | No |
+| `TRUSTED_PROXY_COUNT` | Number of reverse proxies to trust | No |
 
 ## Usage
 1. Open the web interface in your browser

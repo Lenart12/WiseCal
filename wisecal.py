@@ -1,6 +1,7 @@
 import os
 import flask
 from flask import request
+from werkzeug.middleware.proxy_fix import ProxyFix
 import yaml
 import gcal
 import json
@@ -32,6 +33,14 @@ CLIENT_SECRETS_JSON= json.loads(os.environ.get('OAUTH_CLIENT_SECRETS', '{}'))
 SCOPES = gcal.SCOPES
 
 app = flask.Flask(__name__)
+# Apply ProxyFix to handle reverse proxy headers (X-Forwarded-For, X-Forwarded-Proto, etc.)
+TRUSTED_PROXY_COUNT = int(os.environ.get('TRUSTED_PROXY_COUNT', '0'))
+if TRUSTED_PROXY_COUNT > 0:
+  app.wsgi_app = ProxyFix(app.wsgi_app,
+                          x_for=TRUSTED_PROXY_COUNT,
+                          x_proto=TRUSTED_PROXY_COUNT,
+                          x_host=TRUSTED_PROXY_COUNT,
+                          x_prefix=TRUSTED_PROXY_COUNT)
 # Note: A secret key is included in the sample so that it works.
 # If you use this code in your application, replace this with a truly secret
 # key. See https://flask.palletsprojects.com/quickstart/#sessions.
