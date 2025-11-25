@@ -1,0 +1,5 @@
+__pycache__
+.venv
+wc_data
+*.ics
+client_secret*.json

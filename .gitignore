@@ -14,3 +14,7 @@ wheels/
 
 # Project artifacts
 *.ics
+
+# Google API
+client_secret*.json
+wc_data

@@ -1,0 +1,17 @@
+services:
+  wisecal:
+    build: .
+    ports:
+      - "5187:8080"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8080
+      OAUTH_CLIENT_SECRETS: ${OAUTH_CLIENT_SECRETS}
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY}
+      WISECAL_DATA_DIR: /data
+      OAUTHLIB_INSECURE_TRANSPORT: ${OAUTHLIB_INSECURE_TRANSPORT:-0}
+    volumes:
+      - wisecal_data:/data
+
+volumes:
+  wisecal_data:

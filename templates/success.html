@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WiseCal - Uspešno</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --primary-light: #eef2ff;
+            --success: #10b981;
+            --success-light: #d1fae5;
+            --text: #1f2937;
+            --text-muted: #6b7280;
+            --bg: #f9fafb;
+            --card-bg: #ffffff;
+            --border: #e5e7eb;
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            --radius: 12px;
+            --radius-sm: 8px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 480px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-lg);
+            padding: 48px 40px;
+            text-align: center;
+        }
+
+        .success-icon {
+            width: 80px;
+            height: 80px;
+            background: var(--success-light);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+            animation: scaleIn 0.5s ease-out;
+        }
+
+        .success-icon svg {
+            width: 40px;
+            height: 40px;
+            color: var(--success);
+        }
+
+        .checkmark {
+            stroke-dasharray: 50;
+            stroke-dashoffset: 50;
+            animation: checkmark 0.6s ease-out 0.3s forwards;
+        }
+
+        @keyframes scaleIn {
+            0% {
+                transform: scale(0);
+                opacity: 0;
+            }
+            50% {
+                transform: scale(1.1);
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        @keyframes checkmark {
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: var(--text);
+        }
+
+        .message {
+            color: var(--text-muted);
+            font-size: 1rem;
+            line-height: 1.6;
+            margin-bottom: 32px;
+        }
+
+        .calendar-name {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--primary-light);
+            color: var(--primary);
+            padding: 10px 18px;
+            border-radius: 24px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 32px;
+        }
+
+        .calendar-name::before {
+            content: "📅";
+        }
+
+        .info-box {
+            background: var(--success-light);
+            border-radius: var(--radius-sm);
+            padding: 16px 20px;
+            margin-bottom: 28px;
+            text-align: left;
+        }
+
+        .info-box h3 {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--success);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .info-box p {
+            font-size: 0.85rem;
+            color: #065f46;
+            line-height: 1.5;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 14px 28px;
+            border-radius: var(--radius-sm);
+            font-size: 0.95rem;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-muted);
+            margin-top: 12px;
+        }
+
+        .btn-secondary:hover {
+            color: var(--primary);
+        }
+
+        .footer {
+            margin-top: 32px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border);
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+
+        .confetti {
+            position: fixed;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            animation: confetti-fall 3s ease-out forwards;
+            pointer-events: none;
+        }
+
+        @keyframes confetti-fall {
+            0% {
+                opacity: 1;
+                transform: translateY(0) rotate(0deg);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(100vh) rotate(720deg);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="success-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <path class="checkmark" d="M5 13l4 4L19 7"/>
+                </svg>
+            </div>
+            
+            {% if stopped %}
+            <h1>Sinhronizacija ustavljena</h1>
+            <p class="message">Sinhronizacija vašega koledarja je bila uspešno ustavljena.</p>
+            
+            <div class="info-box">
+                <h3>ℹ️ Kaj to pomeni?</h3>
+                <p>Vaš Google Koledar ne bo več prejemal posodobitev iz Wise Timetable urnika. Obstoječi dogodki bodo ostali nespremenjeni.</p>
+            </div>
+            {% else %}
+            <h1>Konfiguracija uspešna!</h1>
+            <p class="message">Vaš koledar je bil uspešno nastavljen in bo kmalu sinhroniziran z Google Koledarjem.</p>
+            
+            <div class="calendar-name">{{ title }}</div>
+            
+            <div class="info-box">
+                <h3>⏱️ Naslednji koraki</h3>
+                <p>Urnik se bo samodejno posodobil v roku <strong>nekaj</strong> minut. Po tem bo vaš Google Koledar vključeval vse termine iz Wise Timetable urnika.</p>
+            </div>
+            {% endif %}
+            
+            <a href="/" class="btn btn-primary">
+                ← Nazaj na začetek
+            </a>
+            
+            <div class="footer">
+                WiseCal © 2025 • Sinhronizacija urnikov
+            </div>
+        </div>
+    </div>
+
+    {% if not stopped %}
+    <script>
+        // Create confetti effect
+        function createConfetti() {
+            const colors = ['#4f46e5', '#7c3aed', '#10b981', '#fbbf24', '#f472b6'];
+            for (let i = 0; i < 50; i++) {
+                setTimeout(() => {
+                    const confetti = document.createElement('div');
+                    confetti.className = 'confetti';
+                    confetti.style.left = Math.random() * 100 + 'vw';
+                    confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                    confetti.style.width = (Math.random() * 10 + 5) + 'px';
+                    confetti.style.height = confetti.style.width;
+                    document.body.appendChild(confetti);
+                    
+                    setTimeout(() => confetti.remove(), 3000);
+                }, i * 30);
+            }
+        }
+        
+        // Run confetti on page load
+        createConfetti();
+    </script>
+    {% endif %}
+</body>
+</html>

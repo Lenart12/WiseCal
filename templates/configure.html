@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WiseCal - Konfiguracija</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --primary-light: #eef2ff;
+            --success: #10b981;
+            --text: #1f2937;
+            --text-muted: #6b7280;
+            --bg: #f9fafb;
+            --card-bg: #ffffff;
+            --border: #e5e7eb;
+            --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            --radius: 12px;
+            --radius-sm: 8px;
+            --focus-ring: 0 0 0 3px rgba(79, 70, 229, 0.3);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.875rem;
+            margin-bottom: 16px;
+            transition: color 0.2s;
+        }
+
+        .back-link:hover {
+            color: var(--primary);
+        }
+
+        .logo {
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, var(--primary) 0%, #7c3aed 100%);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 26px;
+            color: white;
+        }
+
+        h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--text);
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 32px;
+            margin-bottom: 24px;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .card-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--primary-light);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .card-subtitle {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin: 24px 0 16px;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        h3::before {
+            content: "";
+            width: 4px;
+            height: 20px;
+            background: var(--primary);
+            border-radius: 2px;
+        }
+
+        .info-box {
+            background: var(--primary-light);
+            border-radius: var(--radius-sm);
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .info-box h4 {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 12px;
+        }
+
+        .info-box ul {
+            list-style: none;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 8px;
+        }
+
+        .info-box li {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .info-box code {
+            background: rgba(79, 70, 229, 0.15);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.8rem;
+            color: var(--primary);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-weight: 500;
+            font-size: 0.875rem;
+            margin-bottom: 6px;
+            color: var(--text);
+        }
+
+        input[type="text"],
+        input[type="number"],
+        select {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 0.9rem;
+            font-family: inherit;
+            transition: all 0.2s;
+            background: var(--card-bg);
+        }
+
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: var(--focus-ring);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        @media (max-width: 640px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .lead {
+            font-size: 0. nine5rem;
+            color: var(--text-muted);
+            margin-top: 8px;
+            font-size: 0.95rem;
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--bg);
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+
+        .checkbox-item:hover {
+            background: var(--primary-light);
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+            accent-color: var(--primary);
+        }
+
+        .checkbox-item label {
+            margin: 0;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+
+        .color-picker {
+            margin-top: 12px;
+        }
+
+        .color-picker label {
+            margin-bottom: 10px;
+        }
+
+        .color-palette {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .color-swatch {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: rgba(0,0,0,0.6);
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: 2px solid transparent;
+        }
+
+        .color-swatch:hover {
+            transform: scale(1.1);
+            box-shadow: var(--shadow);
+        }
+
+        .offset-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .course-card {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            margin-bottom: 24px;
+            overflow: hidden;
+        }
+
+        .course-header {
+            background: linear-gradient(135deg, var(--primary) 0%, #7c3aed 100%);
+            color: white;
+            padding: 20px 24px;
+        }
+
+        .course-header h2 {
+            color: white;
+            margin: 0;
+            font-size: 1.15rem;
+        }
+
+        .course-body {
+            padding: 24px;
+        }
+
+        .section-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 12px;
+        }
+
+        .section-tab {
+            padding: 8px 16px;
+            background: var(--bg);
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        .section-tab.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .subsection {
+            padding: 20px;
+            background: var(--bg);
+            border-radius: var(--radius-sm);
+            margin-bottom: 16px;
+        }
+
+        .subsection:last-child {
+            margin-bottom: 0;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 14px 32px;
+            border-radius: var(--radius-sm);
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .sticky-footer {
+            position: sticky;
+            bottom: 20px;
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            justify-content: center;
+            margin-top: 32px;
+        }
+
+        .divider {
+            height: 1px;
+            background: var(--border);
+            margin: 24px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="/setup" class="back-link">← Nazaj na nastavitve</a>
+            <div class="logo">📅</div>
+            <h1>Konfiguracija koledarja</h1>
+            <p class="subtitle">{{ title }}</p>
+        </div>
+
+        <form action="configure" method="post">
+            <input type="hidden" id="title" name="title" value="{{ title }}">
+            <input type="hidden" id="schoolcode" name="schoolcode" value="{{ schoolcode }}">
+            <input type="hidden" id="filterId" name="filterId" value="{{ filterId }}">
+
+            <!-- Instructions Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon">📝</div>
+                    <div>
+                        <div class="card-title">Navodila za formatiranje</div>
+                        <div class="card-subtitle">Uporabi te spremenljivke v poljih</div>
+                    </div>
+                </div>
+                <div class="info-box">
+                    <ul>
+                        <li><code>{course}</code> - Ime predmeta</li>
+                        <li><code>{course_abbr}</code> - Kratica predmeta</li>
+                        <li><code>{ctype}</code> - Tip aktivnosti (npr. Predavanje, Seminarske vaje)</li>
+                        <li><code>{ctype_abbr}</code> - Kratica tipa (npr. PR, RV)</li>
+                        <li><code>{groups}</code> - Skupine</li>
+                        <li><code>{location}</code> - Lokacija</li>
+                        <li><code>{lecturer}</code> - Predavatelj</li>
+                        <li><code>{start_time}</code> - Začetek</li>
+                        <li><code>{end_time}</code> - Konec</li>
+                        <li><code>\n</code> - Nova vrstica</li>
+                        <li><code>EMPTY</code> - Prazna vrednost</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Default Lectures Settings -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon">🎓</div>
+                    <div>
+                        <div class="card-title">Predavanja (Splošno)</div>
+                        <div class="card-subtitle">Privzete nastavitve za vsa predavanja</div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="course/DEFAULT/PR/title">Naslov</label>
+                        <input type="text" id="course/DEFAULT/PR/title" name="course/DEFAULT/PR/title" required value="{{ existing_format.get('DEFAULT', {}).get('PR', {}).get('title', '{course} {ctype_abbr}') | replace('\n', '\\n') }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="course/DEFAULT/PR/location">Lokacija</label>
+                        <input type="text" id="course/DEFAULT/PR/location" name="course/DEFAULT/PR/location" required value="{{ existing_format.get('DEFAULT', {}).get('PR', {}).get('location', '{location}') | replace('\n', '\\n') }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="course/DEFAULT/PR/description">Opis</label>
+                        <input type="text" id="course/DEFAULT/PR/description" name="course/DEFAULT/PR/description" required value="{{ existing_format.get('DEFAULT', {}).get('PR', {}).get('description', '{lecturer}') | replace('\n', '\\n') }}">
+                    </div>
+                </div>
+
+                {% if pr_groups %}
+                <div class="form-group">
+                    <label>Izključi skupine iz prikaza:</label>
+                    <div class="checkbox-group">
+                        {% for g in pr_groups %}
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="course/DEFAULT/PR/exclude_groups/{{ g }}" name="course/DEFAULT/PR/exclude_groups/{{ g }}" {{ 'checked' if g in existing_format.get('DEFAULT', {}).get('PR', {}).get('exclude_groups', []) else '' }}>
+                            <label for="course/DEFAULT/PR/exclude_groups/{{ g }}">{{ g }}</label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Default Exercises Settings -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon">💻</div>
+                    <div>
+                        <div class="card-title">Vaje (Splošno)</div>
+                        <div class="card-subtitle">Privzete nastavitve za vse vaje</div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="course/DEFAULT/VAJE/title">Naslov</label>
+                        <input type="text" id="course/DEFAULT/VAJE/title" name="course/DEFAULT/VAJE/title" required value="{{ existing_format.get('DEFAULT', {}).get('VAJE', {}).get('title', '{course_abbr} Vaje') | replace('\n', '\\n') }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="course/DEFAULT/VAJE/location">Lokacija</label>
+                        <input type="text" id="course/DEFAULT/VAJE/location" name="course/DEFAULT/VAJE/location" required value="{{ existing_format.get('DEFAULT', {}).get('VAJE', {}).get('location', '{location}') | replace('\n', '\\n') }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="course/DEFAULT/VAJE/description">Opis</label>
+                        <input type="text" id="course/DEFAULT/VAJE/description" name="course/DEFAULT/VAJE/description" required value="{{ existing_format.get('DEFAULT', {}).get('VAJE', {}).get('description', '{lecturer}\\n{groups}') | replace('\n', '\\n') }}">
+                    </div>
+                </div>
+
+                {% if rv_groups %}
+                <div class="form-group">
+                    <label>Izključi skupine iz prikaza:</label>
+                    <div class="checkbox-group">
+                        {% for g in rv_groups %}
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="course/DEFAULT/VAJE/exclude_groups/{{ g }}" name="course/DEFAULT/VAJE/exclude_groups/{{ g }}" {{ 'checked' if g in existing_format.get('DEFAULT', {}).get('VAJE', {}).get('exclude_groups', []) else '' }}>
+                            <label for="course/DEFAULT/VAJE/exclude_groups/{{ g }}">{{ g }}</label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                <p class="lead">
+                    Pozor: Skupine, ki so izključene tukaj, bodo izključene pri vseh vajah in se jih ne da posamezno ponovno vključiti.
+                </p>
+            </div>
+
+            <!-- Individual Courses -->
+            {% for course in courses %}
+            <div class="course-card">
+                <div class="course-header">
+                    <h2>📚 {{ course.name }}</h2>
+                </div>
+                <div class="course-body">
+                    <!-- Lectures Section -->
+                    <div class="subsection">
+                        <h3>Predavanja</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="course/{{ course.id }}/PR/title">Naslov (posebno)</label>
+                                <input type="text" id="course/{{ course.id }}/PR/title" name="course/{{ course.id }}/PR/title" placeholder="Pusti prazno za privzeto" value="{{ existing_format.get(course.id, {}).get('PR', {}).get('title', '') | replace('\n', '\\n') }}">
+                            </div>
+                            <div class="form-group">
+                                <label for="course/{{ course.id }}/PR/location">Lokacija (posebno)</label>
+                                <input type="text" id="course/{{ course.id }}/PR/location" name="course/{{ course.id }}/PR/location" placeholder="Pusti prazno za privzeto" value="{{ existing_format.get(course.id, {}).get('PR', {}).get('location', '') | replace('\n', '\\n') }}">
+                            </div>
+                            <div class="form-group">
+                                <label for="course/{{ course.id }}/PR/description">Opis (posebno)</label>
+                                <input type="text" id="course/{{ course.id }}/PR/description" name="course/{{ course.id }}/PR/description" placeholder="Pusti prazno za privzeto" value="{{ existing_format.get(course.id, {}).get('PR', {}).get('description', '') | replace('\n', '\\n') }}">
+                            </div>
+                        </div>
+
+                        {% if course.pr_groups %}
+                        <div class="form-group">
+                            <label>Izključi skupine:</label>
+                            <div class="checkbox-group">
+                                {% for g in course.pr_groups %}
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="course/{{ course.id }}/PR/exclude_groups/{{ g }}" name="course/{{ course.id }}/PR/exclude_groups/{{ g }}" {{ 'checked' if g in existing_format.get(course.id, {}).get('PR', {}).get('exclude_groups', []) else '' }}>
+                                    <label for="course/{{ course.id }}/PR/exclude_groups/{{ g }}">{{ g }}</label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <div class="color-picker">
+                            <label for="course/{{ course.id }}/PR/color">Barva predavanj:</label>
+                            <select id="course/{{ course.id }}/PR/color" name="course/{{ course.id }}/PR/color" style="width: auto; display: inline-block; margin-right: 12px;">
+                                <option value="0" {{ 'selected' if existing_format.get(course.id, {}).get('PR', {}).get('color', 0) == 0 else '' }}>Privzeta</option>
+                                {% for i in range(1, 12) %}
+                                <option value="{{ i }}" {{ 'selected' if existing_format.get(course.id, {}).get('PR', {}).get('color', 0) == i else '' }}>{{ i }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="color-palette">
+                                {% for bg in ['#a4bdfc', '#7ae7bf', '#dbadff', '#ff887c', '#fbd75b', '#ffb878', '#46d6db', '#e1e1e1', '#5484ed', '#51b749', '#dc2127'] %}
+                                <div class="color-swatch" style="background-color: {{ bg }};">{{ loop.index }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <div class="offset-row">
+                            <div class="form-group">
+                                <label for="course/{{ course.id }}/PR/start_offset">Zamik začetka (min)</label>
+                                <input type="number" id="course/{{ course.id }}/PR/start_offset" name="course/{{ course.id }}/PR/start_offset" value="{{ existing_format.get(course.id, {}).get('PR', {}).get('start_offset', 0) }}">
+                            </div>
+                            <div class="form-group">
+                                <label for="course/{{ course.id }}/PR/end_offset">Zamik konca (min)</label>
+                                <input type="number" id="course/{{ course.id }}/PR/end_offset" name="course/{{ course.id }}/PR/end_offset" value="{{ existing_format.get(course.id, {}).get('PR', {}).get('end_offset', 0) }}">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Exercises Section -->
+                    <div class="subsection">
+                        <h3>Vaje</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="course/{{ course.id }}/VAJE/title">Naslov (posebno)</label>
+                                <input type="text" id="course/{{ course.id }}/VAJE/title" name="course/{{ course.id }}/VAJE/title" placeholder="Pusti prazno za privzeto" value="{{ existing_format.get(course.id, {}).get('VAJE', {}).get('title', '') | replace('\n', '\\n') }}">
+                            </div>
+                            <div class="form-group">
+                                <label for="course/{{ course.id }}/VAJE/location">Lokacija (posebno)</label>
+                                <input type="text" id="course/{{ course.id }}/VAJE/location" name="course/{{ course.id }}/VAJE/location" placeholder="Pusti prazno za privzeto" value="{{ existing_format.get(course.id, {}).get('VAJE', {}).get('location', '') | replace('\n', '\\n') }}">
+                            </div>
+                            <div class="form-group">
+                                <label for="course/{{ course.id }}/VAJE/description">Opis (posebno)</label>
+                                <input type="text" id="course/{{ course.id }}/VAJE/description" name="course/{{ course.id }}/VAJE/description" placeholder="Pusti prazno za privzeto" value="{{ existing_format.get(course.id, {}).get('VAJE', {}).get('description', '') | replace('\n', '\\n') }}">
+                            </div>
+                        </div>
+
+                        {% if course.rv_groups %}
+                        <div class="form-group">
+                            <label>Izključi skupine:</label>
+                            <div class="checkbox-group">
+                                {% for g in course.rv_groups %}
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="course/{{ course.id }}/VAJE/exclude_groups/{{ g }}" name="course/{{ course.id }}/VAJE/exclude_groups/{{ g }}" {{ 'checked' if g in existing_format.get(course.id, {}).get('VAJE', {}).get('exclude_groups', []) else '' }}>
+                                    <label for="course/{{ course.id }}/VAJE/exclude_groups/{{ g }}">{{ g }}</label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <div class="color-picker">
+                            <label for="course/{{ course.id }}/VAJE/color">Barva vaj:</label>
+                            <select id="course/{{ course.id }}/VAJE/color" name="course/{{ course.id }}/VAJE/color" style="width: auto; display: inline-block; margin-right: 12px;">
+                                <option value="0" {{ 'selected' if existing_format.get(course.id, {}).get('VAJE', {}).get('color', 0) == 0 else '' }}>Privzeta</option>
+                                {% for i in range(1, 12) %}
+                                <option value="{{ i }}" {{ 'selected' if existing_format.get(course.id, {}).get('VAJE', {}).get('color', 0) == i else '' }}>{{ i }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="color-palette">
+                                {% for bg in ['#a4bdfc', '#7ae7bf', '#dbadff', '#ff887c', '#fbd75b', '#ffb878', '#46d6db', '#e1e1e1', '#5484ed', '#51b749', '#dc2127'] %}
+                                <div class="color-swatch" style="background-color: {{ bg }};">{{ loop.index }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <div class="offset-row">
+                            <div class="form-group">
+                                <label for="course/{{ course.id }}/VAJE/start_offset">Zamik začetka (min)</label>
+                                <input type="number" id="course/{{ course.id }}/VAJE/start_offset" name="course/{{ course.id }}/VAJE/start_offset" value="{{ existing_format.get(course.id, {}).get('VAJE', {}).get('start_offset', 0) }}">
+                            </div>
+                            <div class="form-group">
+                                <label for="course/{{ course.id }}/VAJE/end_offset">Zamik konca (min)</label>
+                                <input type="number" id="course/{{ course.id }}/VAJE/end_offset" name="course/{{ course.id }}/VAJE/end_offset" value="{{ existing_format.get(course.id, {}).get('VAJE', {}).get('end_offset', 0) }}">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+
+            <!-- Sticky Submit Button -->
+            <div class="sticky-footer">
+                <button type="submit" class="btn btn-primary">
+                    ✓ Shrani konfiguracijo
+                </button>
+            </div>
+        </form>
+    </div>
+</body>
+</html>

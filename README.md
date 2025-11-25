@@ -1,64 +1,94 @@
-# WiseDiff
+# WiseCal
 
-WiseDiff is a Python script for monitoring changes in school timetables (ICS files) and sending notifications about detected changes to a Discord channel via webhook. It is designed for use with Wise TT timetables and provides automated change detection and reporting.
+WiseCal is a web application that automatically syncs your Wise TT school timetable to Google Calendar. It provides a simple web interface for configuration and runs periodic synchronization in the background.
 
 ## Features
-- Downloads the latest timetable from Wise TT
-- Compares new and old ICS files to detect changes
-- Uses OpenAI to summarize changes in a student-friendly format
-- Sends notifications to Discord via webhook
+- Syncs Wise TT timetables directly to Google Calendar
+- Web-based configuration interface
+- OAuth 2.0 authentication with Google
+- Automatic background synchronization (every 15 minutes)
+- Customizable event formatting per course and type (lectures/exercises)
+- Docker support for easy deployment
 
 ## Installation
+
+### Using Docker (Recommended)
 1. Clone this repository:
    ```bash
    git clone <repo-url>
-   cd urnik
+   cd WiseCal
    ```
-2. Create and activate a virtual environment (recommended):
+
+2. Set up environment variables in a `.env` file:
+   ```bash
+   OAUTH_CLIENT_SECRETS='{"web":{"client_id":"...","client_secret":"..."}}'
+   FLASK_SECRET_KEY=your-secret-key
+   ```
+
+3. Build and run with Docker Compose:
+   ```bash
+   docker compose up -d
+   ```
+
+The application will be available at `http://localhost:5187`.
+
+### Manual Installation
+1. Clone this repository:
+   ```bash
+   git clone <repo-url>
+   cd WiseCal
+   ```
+
+2. Install dependencies using uv:
    ```bash
    uv sync
    ```
 
 3. Install Playwright browsers:
    ```bash
-   playwright install
+   uv run playwright install --with-deps chromium
    ```
-4. Set up environment variables and run the script in a cron job or scheduler.
 
-## Usage
-Run the script from the command line:
-```bash
-uv run main.py \
-  -t <schoolcode/filterId> \
-  -n "Timetable Name" \
-  [-d <storage_dir>] \
-  [-a <api_url>]
-```
+4. Set up environment variables and run:
+   ```bash
+   export OAUTH_CLIENT_SECRETS='{"web":{"client_id":"...","client_secret":"..."}}'
+   export FLASK_SECRET_KEY=your-secret-key
+   uv run waitress-serve --call wisecal:create_app
+   ```
 
-### Cron Job Example
-To run the script every 30 minutes, add the following line to your crontab (edit with `crontab -e`):
-```cron
-*/30 * * * * /root/.local/bin/uv run --project /path/to/WiseDiff /path/to/WiseDiff/main.py -t "schoolcode/filterId" -n "Timetable name" -d /path/to/storage
-```
+## Configuration
 
-Make sure to replace `/path/to/WiseDiff` and `/path/to/storage` with the actual paths on your system, ensure that the `uv` command is accessible, and that the script has the necessary permissions to run.
+### Google OAuth Setup
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select an existing one
+3. Enable the Google Calendar API
+4. Create OAuth 2.0 credentials (Web application type)
+5. Add your redirect URI (e.g., `http://localhost:5187/oauth2callback`)
+6. Copy the client secrets JSON to `OAUTH_CLIENT_SECRETS` environment variable
 
-It is recommended to run the script first manually to ensure everything is set up correctly before scheduling it with cron.
-
-
-### Arguments
-- `-t`, `--timetable` (required): Timetable in the format `schoolcode/filterId`
-- `-n`, `--timetable-name` (required): Human-readable name for the timetable
-- `-d`, `--storage-dir`: Directory to store ICS files (default: current directory)
-- `-a`, `--api-url`: Wise TT API URL (default: https://www.wise-tt.com)
-
-### Example
-```bash
-uv run main.py -t "um_feri/0;389,569;0;0;" -n "FERI RIT MAG 1. letnik""
-```
+### Finding Your Filter ID
+1. Open [Wise TT](https://www.wise-tt.com) and navigate to your school's timetable
+2. Select your desired groups/filters
+3. Click the "Bookmark" icon
+4. Copy the Filter ID from the URL
 
 ## Environment Variables
-Store these values in a `.env` file or export as an environment variable.
 
-- `OPENAI_API_KEY`: Your OpenAI API key (required for change summarization)
-- `DISCORD_WEBHOOK_URL`: Discord webhook URL for sending notifications (required)
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `OAUTH_CLIENT_SECRETS` | Google OAuth 2.0 client secrets JSON | Yes |
+| `FLASK_SECRET_KEY` | Secret key for Flask sessions | Yes |
+| `WISECAL_DATA_DIR` | Directory for storing user data (default: `./wc_data`) | No |
+| `OAUTHLIB_INSECURE_TRANSPORT` | Set to `1` for development without HTTPS | No |
+
+## Usage
+1. Open the web interface in your browser
+2. Sign in with your Google account
+3. Configure your timetable by providing:
+   - Calendar name
+   - School code (e.g., `um_feri`)
+   - Filter ID from Wise TT
+4. Customize event formatting (optional)
+5. Save your configuration
+
+The application will automatically sync your timetable to Google Calendar every 15 minutes.
