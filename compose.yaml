@@ -10,6 +10,7 @@ services:
       FLASK_SECRET_KEY: ${FLASK_SECRET_KEY}
       WISECAL_DATA_DIR: /data
       OAUTHLIB_INSECURE_TRANSPORT: ${OAUTHLIB_INSECURE_TRANSPORT:-0}
+      TRUSTED_PROXY_COUNT: ${TRUSTED_PROXY_COUNT:-0}
     volumes:
       - wisecal_data:/data
 
