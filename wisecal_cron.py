@@ -3,6 +3,7 @@ import wise_tt
 import yaml
 import filecmp
 import logging
+import copy
 
 # Configure logging
 logging.basicConfig(
@@ -31,6 +32,10 @@ def sync_slots(slots, settings):
     for slot_id in synced_slots:
         if slot_id not in new_ids:
             to_delete.append(slot_id)
+
+    if len(to_insert) == 0 and len(to_delete) == 0:
+        logger.info(f"No changes to sync for {owner}")
+        return
 
     logger.info(f"Syncing for {owner}: {len(to_insert)} to insert, {len(to_delete)} to delete, {len(synced)} unchanged")
 
@@ -65,8 +70,18 @@ def main():
         if settings.get('calendar', {}).get('enabled', False):
             schoolcode = settings['calendar'].get('timetable', {}).get('schoolcode')
             filterId = settings['calendar'].get('timetable', {}).get('filterId')
-            if schoolcode and filterId:
-                jobs.setdefault(schoolcode, {}).setdefault(filterId, []).append(settings)
+            if not schoolcode or not filterId:
+                logger.warning(f"Skipping settings file {settings_fn} due to missing schoolcode or filterId")
+                continue
+            jobs.setdefault(schoolcode, {}).setdefault(filterId, []).append(settings)
+            # Reset force_sync after use
+            if settings['calendar'].get('force_sync', False):
+                logger.info(f"Force sync enabled for {settings['calendar']['owner']}")
+                new_settings = copy.deepcopy(settings)
+                new_settings['calendar']['force_sync'] = False
+                with open(settings_fn, 'w') as f:
+                    yaml.safe_dump(new_settings, f)
+            
     
     total_users = sum(len(users) for sc in jobs.values() for users in sc.values())
     logger.info(f"Found {total_users} enabled calendars to sync")
@@ -81,8 +96,10 @@ def main():
             )
             old_tt = gcal.BASE_DATA_DIR / 'calendars' / f"{tt_filename}.ics"
 
+            has_force_sync = any(settings.get('calendar', {}).get('force_sync', False) for settings in jobs[schoolcode][filterId])
+            is_same = old_tt.exists() and filecmp.cmp(old_tt, new_tt)
             # If the old and new files are the same, delete the new one and continue
-            if old_tt.exists() and filecmp.cmp(old_tt, new_tt):
+            if not has_force_sync and is_same:
                 new_tt.unlink()
                 logger.info(f"No changes in timetable: {schoolcode}, {filterId}")
                 continue
@@ -90,6 +107,9 @@ def main():
             slots = wise_tt.get_slots(new_tt)
             logger.info(f"Timetable changed: {schoolcode}, {filterId} - {len(slots)} slots")
             for settings in jobs[schoolcode][filterId]:
+                if is_same and not settings.get('calendar', {}).get('force_sync', False):
+                    logger.info(f"Skipping sync for {settings['calendar']['owner']} as there are no changes")
+                    continue
                 try:
                     sync_slots(slots, settings)
                 except Exception as e:

@@ -182,6 +182,7 @@ def configure():
         'enabled': True,
         'owner': email,
         'title': title,
+        'force_sync': True,
         'timetable': {
           'schoolcode': schoolcode,
           'filterId': filterId
