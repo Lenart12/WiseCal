@@ -167,6 +167,42 @@
             box-shadow: var(--shadow);
         }
 
+        .btn-primary:disabled {
+            background: var(--primary);
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn.disabled,
+        .btn[aria-disabled="true"] {
+            opacity: 0.7;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            display: none;
+        }
+
+        .btn.loading .spinner {
+            display: block;
+        }
+
+        .btn.loading .btn-text {
+            opacity: 0.7;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
         .info-box {
             background: var(--primary-light);
             border-radius: var(--radius-sm);
@@ -225,8 +261,9 @@
                     <span style="font-size: 0.8rem;">Šola: {{ existing_settings.calendar.timetable.schoolcode }}, Filter: {{ existing_settings.calendar.timetable.filterId }}</span>
                 </p>
                 <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                    <a href="/configure?title={{ existing_settings.calendar.title | urlencode }}&schoolcode={{ existing_settings.calendar.timetable.schoolcode | urlencode }}&filterId={{ existing_settings.calendar.timetable.filterId | urlencode }}" class="btn btn-primary" style="padding: 10px 20px; font-size: 0.9rem;">
-                        ✏️ Uredi obstoječo konfiguracijo
+                    <a href="/configure?title={{ existing_settings.calendar.title | urlencode }}&schoolcode={{ existing_settings.calendar.timetable.schoolcode | urlencode }}&filterId={{ existing_settings.calendar.timetable.filterId | urlencode }}" class="btn btn-primary" style="padding: 10px 20px; font-size: 0.9rem;" onclick="this.classList.add('loading')">
+                        <span class="spinner"></span>
+                        <span class="btn-text">✏️ Uredi obstoječo konfiguracijo</span>
                     </a>
                 </div>
             </div>
@@ -252,10 +289,41 @@
                 </div>
 
                 <button type="submit" class="btn btn-primary">
-                    Naprej na konfiguracijo →
+                    <span class="spinner"></span>
+                    <span class="btn-text">Naprej na konfiguracijo →</span>
                 </button>
             </form>
         </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const form = document.querySelector('form');
+            const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+
+            if (form && submitBtn) {
+                form.addEventListener('submit', function() {
+                    submitBtn.classList.add('loading', 'disabled');
+                    submitBtn.disabled = true;
+                    submitBtn.setAttribute('aria-disabled', 'true');
+                });
+            }
+
+            document.querySelectorAll('.btn').forEach((button) => {
+                if (button === submitBtn) {
+                    return;
+                }
+
+                button.addEventListener('click', function() {
+                    if (this.classList.contains('disabled')) {
+                        return;
+                    }
+
+                    this.classList.add('loading', 'disabled');
+                    this.setAttribute('aria-disabled', 'true');
+                });
+            });
+        });
+    </script>
 </body>
 </html>
