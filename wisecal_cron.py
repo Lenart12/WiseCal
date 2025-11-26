@@ -45,20 +45,72 @@ def sync_slots(slots, settings):
         cal_id = gcal.create_calendar(owner, settings['calendar']['title'])
         logger.info(f"Created new calendar for {owner}: {cal_id}")
 
-    BATCH_SIZE = 50
-    for i in range(0, len(to_insert), BATCH_SIZE):
+    # Track successfully processed events
+    inserted_ids = []
+    deleted_ids = []
+    insert_errors = []
+    delete_errors = []
+
+    def make_insert_callback(slot_id):
+        def callback(_, __, exception):
+            if exception is not None:
+                insert_errors.append((slot_id, exception))
+                logger.error(f"Failed to insert event {slot_id}: {exception}")
+            else:
+                inserted_ids.append(slot_id)
+        return callback
+
+    def make_delete_callback(slot_id):
+        def callback(_, __, exception):
+            if exception is not None:
+                # 404 errors on delete are okay - event already gone
+                if hasattr(exception, 'resp') and exception.resp.status == 404:
+                    deleted_ids.append(slot_id)
+                else:
+                    delete_errors.append((slot_id, exception))
+                    logger.error(f"Failed to delete event {slot_id}: {exception}")
+            else:
+                deleted_ids.append(slot_id)
+        return callback
+
+    BATCH_SIZE = 1000
+    insert_idx = 0
+    delete_idx = 0
+    while insert_idx < len(to_insert) or delete_idx < len(to_delete):
         batch = service.new_batch_http_request()
-        for slot in to_insert[i:i+BATCH_SIZE]:
-            batch.add(service.events().insert(calendarId=cal_id, body=slot))
-        batch.execute()
-    for i in range(0, len(to_delete), BATCH_SIZE):
-        batch = service.new_batch_http_request()
-        for slot_id in to_delete[i:i+BATCH_SIZE]:
-            batch.add(service.events().delete(calendarId=cal_id, eventId=slot_id))
+        batch_count = 0
+
+        # Add inserts to batch
+        while insert_idx < len(to_insert) and batch_count < BATCH_SIZE:
+            slot = to_insert[insert_idx]
+            batch.add(
+                service.events().insert(calendarId=cal_id, body=slot),
+                callback=make_insert_callback(slot['id'])
+            )
+            insert_idx += 1
+            batch_count += 1
+
+        # Add deletes to batch
+        while delete_idx < len(to_delete) and batch_count < BATCH_SIZE:
+            slot_id = to_delete[delete_idx]
+            batch.add(
+                service.events().delete(calendarId=cal_id, eventId=slot_id),
+                callback=make_delete_callback(slot_id)
+            )
+            delete_idx += 1
+            batch_count += 1
+
         batch.execute()
 
-    gcal.save_synced_event_ids(owner, synced + [slot['id'] for slot in to_insert])
-    logger.info(f"Sync completed for {owner}")
+    # Update synced IDs: keep synced + successfully inserted - successfully deleted
+    final_synced_ids = set(synced) | set(inserted_ids)
+    final_synced_ids -= set(deleted_ids)
+    gcal.save_synced_event_ids(owner, list(final_synced_ids))
+
+    if insert_errors or delete_errors:
+        logger.warning(f"Sync completed for {owner} with errors: {len(insert_errors)} insert failures, {len(delete_errors)} delete failures")
+    else:
+        logger.info(f"Sync completed for {owner}: {len(inserted_ids)} inserted, {len(deleted_ids)} deleted")
 
 def main():
     logger.info("Starting WiseCal cron job")
