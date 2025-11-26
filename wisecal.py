@@ -96,10 +96,15 @@ def oauth2callback():
   # Use the authorization server's response to fetch the OAuth 2.0 tokens.
   authorization_response = flask.request.url
   flow.fetch_token(authorization_response=authorization_response)
-  for s in SCOPES:
-    if s not in flow.credentials.scopes:
+  
+  # Check if all required scopes were granted
+  missing_scopes = [s for s in SCOPES if s not in flow.credentials.scopes]
+  if missing_scopes:
+    for s in missing_scopes:
       logger.warning(f"OAuth callback: scope {s} not granted")
-      return ('Error: Not all requested scopes were granted.<br><br>')
+    # Redirect to authorize with consent prompt to get missing scopes
+    return flask.redirect(flask.url_for('authorize', prompt='consent'))
+  
   
   decoded = google.oauth2.id_token.verify_oauth2_token(
       flow.credentials.id_token,
@@ -108,12 +113,16 @@ def oauth2callback():
   )
   flask.session['email'] = decoded['email']
   logger.info(f"User logged in: {decoded['email']}")
+  cred_fn = gcal.BASE_DATA_DIR / 'credentials' / f"{decoded['email']}.json"
   if flow.credentials.refresh_token is not None:
-    cred_fn = gcal.BASE_DATA_DIR / 'credentials' / f"{decoded['email']}.json"
     with open(cred_fn, 'w') as fh:
       fh.write(flow.credentials.to_json())
     logger.info(f"Saved credentials for: {decoded['email']}")
-
+  else:
+    if not cred_fn.exists():
+      logger.warning(f"OAuth callback: no refresh token and no existing credentials for {decoded['email']}")
+      # Redirect to authorize with consent prompt to get refresh token
+      return flask.redirect(flask.url_for('authorize', prompt='consent'))
   return flask.redirect('/')
 
 @app.route('/logout')
@@ -311,6 +320,8 @@ def stop():
   with open(settings_fn, 'w') as fh:
     yaml.safe_dump(settings, fh)
   return flask.render_template('success.html', title='Sinhronizacija ustavljena', stopped=True)
+
+os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'
 
 def create_app():
   gcal.ensure_dirs()
