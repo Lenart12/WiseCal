@@ -297,7 +297,6 @@ def configure():
           {'schoolcode': schoolcode, 'filterId': filterId},
           cal_fn
       )
-      logger.info(f"Downloaded {len(slots)} slots for {email}")
     except Exception as e:
       logger.error(f"Error downloading timetable for {email}: {e}")
       return flask.render_template('error.html',
@@ -308,6 +307,7 @@ def configure():
 
   try:
     slots = wise_tt.get_slots(cal_fn)
+    logger.info(f"Loaded {len(slots)} slots for {email}")
   except Exception as e:
     return flask.render_template('error.html',
       message='Napaka pri branju urnika.',
