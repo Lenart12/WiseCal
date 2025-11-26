@@ -29,7 +29,5 @@ WORKDIR /app
 RUN /app/.venv/bin/playwright install --with-deps chromium
 COPY templates /app/templates
 COPY *.py /app/
-# CMD ["/bin/bash"]
 
-
-CMD ["/app/.venv/bin/waitress-serve", "--call", "wisecal:create_app"]
+CMD ["/app/.venv/bin/waitress-serve", "--trusted-proxy=*", "--trusted-proxy-headers=x-forwarded-host x-forwarded-for x-forwarded-proto x-forwarded-port x-forwarded-by", "--call", "wisecal:create_app"]

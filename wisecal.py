@@ -36,6 +36,7 @@ app = flask.Flask(__name__)
 # Apply ProxyFix to handle reverse proxy headers (X-Forwarded-For, X-Forwarded-Proto, etc.)
 TRUSTED_PROXY_COUNT = int(os.environ.get('TRUSTED_PROXY_COUNT', '0'))
 if TRUSTED_PROXY_COUNT > 0:
+  logger.info(f"Applying ProxyFix with TRUSTED_PROXY_COUNT={TRUSTED_PROXY_COUNT}")
   app.wsgi_app = ProxyFix(app.wsgi_app,
                           x_for=TRUSTED_PROXY_COUNT,
                           x_proto=TRUSTED_PROXY_COUNT,
@@ -48,6 +49,7 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'WiseCal-CHANGE-THIS')
 
 scheduler = BackgroundScheduler()
 sync_job = scheduler.add_job(wisecal_cron.main, 'interval', minutes=15, max_instances=1)
+logger.info("Starting background scheduler for calendar sync...")
 scheduler.start()
 
 @app.route('/')
