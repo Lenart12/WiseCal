@@ -34,7 +34,7 @@ def sync_slots(slots, settings):
             to_delete.append(slot_id)
 
     if len(to_insert) == 0 and len(to_delete) == 0:
-        logger.info(f"No changes to sync for {owner}")
+        logger.debug(f"No changes to sync for {owner}")
         return
 
     logger.info(f"Syncing for {owner}: {len(to_insert)} to insert, {len(to_delete)} to delete, {len(synced)} unchanged")
@@ -113,7 +113,7 @@ def sync_slots(slots, settings):
         logger.info(f"Sync completed for {owner}: {len(inserted_ids)} inserted, {len(deleted_ids)} deleted")
 
 def main():
-    logger.info("Starting WiseCal cron job")
+    logger.debug("Starting WiseCal cron job")
     gcal.ensure_dirs()
     settings_dir = gcal.BASE_DATA_DIR / 'settings'
     jobs = {}
@@ -136,12 +136,12 @@ def main():
             
     
     total_users = sum(len(users) for sc in jobs.values() for users in sc.values())
-    logger.info(f"Found {total_users} enabled calendars to sync")
+    logger.debug(f"Found {total_users} enabled calendars to sync")
     
     for schoolcode in jobs:
         for filterId in jobs[schoolcode]:
             tt_filename = schoolcode + "_" + filterId
-            logger.info(f"Downloading timetable: {schoolcode}, {filterId}")
+            logger.debug(f"Downloading timetable: {schoolcode}, {filterId}")
             new_tt = wise_tt.download_ical(
                 {'schoolcode': schoolcode, 'filterId': filterId},
                 gcal.BASE_DATA_DIR / 'calendars' / f"{tt_filename}.new.ics"
@@ -153,14 +153,14 @@ def main():
             # If the old and new files are the same, delete the new one and continue
             if not has_force_sync and is_same:
                 new_tt.unlink()
-                logger.info(f"No changes in timetable: {schoolcode}, {filterId}")
+                logger.debug(f"No changes in timetable: {schoolcode}, {filterId}")
                 continue
 
             slots = wise_tt.get_slots(new_tt)
             logger.info(f"Timetable changed: {schoolcode}, {filterId} - {len(slots)} slots")
             for settings in jobs[schoolcode][filterId]:
                 if is_same and not settings.get('calendar', {}).get('force_sync', False):
-                    logger.info(f"Skipping sync for {settings['calendar']['owner']} as there are no changes")
+                    logger.debug(f"Skipping sync for {settings['calendar']['owner']} as there are no changes")
                     continue
                 try:
                     sync_slots(slots, settings)
@@ -169,7 +169,7 @@ def main():
 
             new_tt.rename(old_tt)
     
-    logger.info("WiseCal cron job completed")
+    logger.debug("WiseCal cron job completed")
             
 
 if __name__ == '__main__':

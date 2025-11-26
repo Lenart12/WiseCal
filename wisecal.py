@@ -24,6 +24,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Reduce apscheduler logging noise
+logging.getLogger('apscheduler').setLevel(logging.WARNING)
+
 # This variable specifies the name of a file that contains the OAuth 2.0
 # information for this application, including its client_id and client_secret.
 CLIENT_SECRETS_JSON= json.loads(os.environ.get('OAUTH_CLIENT_SECRETS', '{}'))
@@ -239,6 +242,7 @@ def configure():
       yaml.safe_dump(settings, fh)
     logger.info(f"Configuration saved for {email}: {title} ({schoolcode}, {filterId})")
     sync_job.modify(next_run_time=datetime.now())
+    logger.info(f"Scheduled immediate sync because of new configuration for {email}")
     return flask.render_template('success.html', title=title)
 
   tmp_cal_fn = gcal.BASE_DATA_DIR / 'calendars' / f"{schoolcode}_{filterId}.tmp.{flask.session.get('email')}.ics"
