@@ -13,6 +13,7 @@ import google_auth_oauthlib.flow
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import wise_tt
 import wisecal_cron
@@ -50,15 +51,16 @@ if TRUSTED_PROXY_COUNT > 0:
 # key. See https://flask.palletsprojects.com/quickstart/#sessions.
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'WiseCal-CHANGE-THIS')
 
-last_check_time = None
-last_update_time = None
 
 scheduler = BackgroundScheduler()
+LJUBLJANA_TZ = ZoneInfo('Europe/Ljubljana')
+last_check_time = None
+last_update_time = None
 
 def wisecal_sync_task():
     global last_check_time, last_update_time
     calendar_updated = wisecal_cron.main()
-    last_check_time = datetime.now()
+    last_check_time = datetime.now(LJUBLJANA_TZ)
     if calendar_updated:
         last_update_time = last_check_time
 
