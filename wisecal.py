@@ -50,14 +50,30 @@ if TRUSTED_PROXY_COUNT > 0:
 # key. See https://flask.palletsprojects.com/quickstart/#sessions.
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'WiseCal-CHANGE-THIS')
 
+last_check_time = None
+last_update_time = None
+
 scheduler = BackgroundScheduler()
-sync_job = scheduler.add_job(wisecal_cron.main, 'interval', minutes=15, max_instances=1)
+
+def wisecal_sync_task():
+    global last_check_time, last_update_time
+    calendar_updated = wisecal_cron.main()
+    last_check_time = datetime.now()
+    if calendar_updated:
+        last_update_time = last_check_time
+
+sync_job = scheduler.add_job(wisecal_sync_task, 'interval', minutes=15, max_instances=1)
 logger.info("Starting background scheduler for calendar sync...")
 scheduler.start()
 
 @app.route('/')
 def index():
-  return flask.render_template('index.html', email=flask.session.get('email'))
+  global last_check_time, last_update_time
+  return flask.render_template('index.html',
+                email=flask.session.get('email'),
+                last_check_time=last_check_time,
+                last_update_time=last_update_time,
+                )
 
 @app.route('/authorize')
 def authorize():

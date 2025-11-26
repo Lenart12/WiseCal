@@ -138,6 +138,7 @@ def main():
     total_users = sum(len(users) for sc in jobs.values() for users in sc.values())
     logger.debug(f"Found {total_users} enabled calendars to sync")
     
+    calendar_updated = False
     for schoolcode in jobs:
         for filterId in jobs[schoolcode]:
             tt_filename = schoolcode + "_" + filterId
@@ -164,13 +165,14 @@ def main():
                     continue
                 try:
                     sync_slots(slots, settings)
+                    calendar_updated = True
                 except Exception as e:
                     logger.error(f"Error syncing slots for {settings['calendar']['owner']}: {e}")
 
             new_tt.rename(old_tt)
     
     logger.debug("WiseCal cron job completed")
-            
+    return calendar_updated
 
 if __name__ == '__main__':
     main()

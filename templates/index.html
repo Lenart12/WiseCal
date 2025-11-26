@@ -99,6 +99,36 @@
             font-weight: 700;
         }
 
+        .status-info {
+            background: var(--bg);
+            border-radius: var(--radius-sm);
+            padding: 16px;
+            margin-bottom: 24px;
+            text-align: left;
+        }
+
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+        }
+
+        .status-row:not(:last-child) {
+            border-bottom: 1px solid var(--border);
+        }
+
+        .status-label {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        .status-value {
+            color: var(--text);
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
         .menu {
             display: flex;
             flex-direction: column;
@@ -213,6 +243,16 @@
                     <a href="/stop" class="btn btn-danger">
                         <span>⏹️</span> Ustavi sinhronizacijo
                     </a>
+                </div>
+                <div class="status-info">
+                    <div class="status-row">
+                        <span class="status-label">Zadnje preverjanje:</span>
+                        <span class="status-value">{{ last_check_time.strftime('%d. %m. %Y %H:%M') if last_check_time else 'Še ni bilo' }}</span>
+                    </div>
+                    <div class="status-row">
+                        <span class="status-label">Zadnja posodobitev:</span>
+                        <span class="status-value">{{ last_update_time.strftime('%d. %m. %Y %H:%M') if last_update_time else 'Še ni bilo' }}</span>
+                    </div>
                 </div>
                 <a href="/logout" class="logout-link">Odjava iz računa</a>
             {% else %}
