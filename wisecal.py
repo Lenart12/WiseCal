@@ -116,6 +116,31 @@ def oauth2callback():
 
   # Use the authorization server's response to fetch the OAuth 2.0 tokens.
   authorization_response = flask.request.url
+  def access_denied():
+    logger.warning("OAuth callback: user denied access")
+    return flask.render_template('error.html',
+      message='Dostop zavrnjen.',
+      details='Niste dovolili dostopa do vašega Google Koledarja.',
+      help_tips=['Če želite uporabljati WiseCal, morate dovoliti dostop do vašega Google Koledarja.', 'Lahko poskusite znova in tokrat dovolite dostop.'],
+      back_url='/', back_text='Nazaj na začetek')
+
+  if 'error' in flask.request.args:
+    if flask.request.args.get('error') == 'access_denied':
+      return access_denied()
+    else:
+      logger.warning(f"OAuth callback: error received - {flask.request.args.get('error')}")
+      return flask.render_template('error.html',
+        message='Napaka pri avtentikaciji.',
+        details=f"Prejeto sporočilo o napaki: {flask.request.args.get('error')}",
+        help_tips=['Poskusite znova čez nekaj minut.', 'Če se napaka ponovi, kontaktirajte podporo.'],
+        back_url='/', back_text='Nazaj na začetek')
+    
+  scopes = flask.request.args.get('scope', '').split(' ')
+  for s in SCOPES:
+    if s not in scopes:
+      logger.warning(f"OAuth callback: scope {s} not granted")
+      return access_denied()
+
   flow.fetch_token(authorization_response=authorization_response)
   
   # Check if all required scopes were granted
