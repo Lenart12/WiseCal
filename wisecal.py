@@ -288,24 +288,32 @@ def configure():
     logger.info(f"Scheduled immediate sync because of new configuration for {email}")
     return flask.render_template('success.html', title=title)
 
-  tmp_cal_fn = gcal.BASE_DATA_DIR / 'calendars' / f"{schoolcode}_{filterId}.tmp.{flask.session.get('email')}.ics"
+  cal_fn = gcal.BASE_DATA_DIR / 'calendars' / f"{schoolcode}_{filterId}.ics"
+
+  if not cal_fn.exists():
+    try:
+      logger.info(f"Downloading timetable for {email}: {schoolcode}, {filterId}")
+      wise_tt.download_ical(
+          {'schoolcode': schoolcode, 'filterId': filterId},
+          cal_fn
+      )
+      logger.info(f"Downloaded {len(slots)} slots for {email}")
+    except Exception as e:
+      logger.error(f"Error downloading timetable for {email}: {e}")
+      return flask.render_template('error.html',
+        message='Napaka pri prenosu urnika.',
+        details=str(e),
+        help_tips=['Preverite, da je šifra šole pravilna', 'Preverite, da je Filter ID pravilen', 'Poskusite znova čez nekaj minut'],
+        back_url='/setup', back_text='Nazaj na nastavitve')
+
   try:
-    logger.info(f"Downloading timetable for {email}: {schoolcode}, {filterId}")
-    wise_tt.download_ical(
-        {'schoolcode': schoolcode, 'filterId': filterId},
-        tmp_cal_fn
-    )
-    slots = wise_tt.get_slots(tmp_cal_fn)
-    logger.info(f"Downloaded {len(slots)} slots for {email}")
+    slots = wise_tt.get_slots(cal_fn)
   except Exception as e:
-    logger.error(f"Error downloading timetable for {email}: {e}")
     return flask.render_template('error.html',
-      message='Napaka pri prenosu urnika.',
+      message='Napaka pri branju urnika.',
       details=str(e),
-      help_tips=['Preverite, da je šifra šole pravilna', 'Preverite, da je Filter ID pravilen', 'Poskusite znova čez nekaj minut'],
+      help_tips=['Preverite, da je šifra šole pravilna (npr. um_feri)', 'Preverite, da je Filter ID pravilen', 'Prepričajte se, da ima urnik aktivne termine'],
       back_url='/setup', back_text='Nazaj na nastavitve')
-  finally:
-    tmp_cal_fn.unlink(True)
 
   if len(slots) == 0:
     return flask.render_template('error.html',
