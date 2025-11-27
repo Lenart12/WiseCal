@@ -144,8 +144,68 @@ def get_slots(ical_path):
             }
             slot.ctype = ctype_map.get(slot.ctype_abbr, slot.ctype_abbr)
             slot.location = str(component.get('LOCATION'))
-            slot.lecturer = dparts[2].title()
-            slot.groups = [group.strip() for group in dparts[3:]]
+
+            lecturers = []
+            groups = []
+            groups_started = False
+            lecutrers_and_groups = dparts[2:]
+
+            # We need to heuristically separate lecturers and groups from the remaining parts
+            # Assumptions:
+            # - The first part is always a lecturer
+            # - The last part is always a group
+            # - After the first part, once we start seeing groups, all subsequent parts are groups
+            # - Groups often contain digits or specific keywords
+            for i, part in enumerate(lecutrers_and_groups):
+                # First part is always lecturer
+                if i == 0:
+                    lecturers.append(part.title())
+                    # print(f"First part, adding lecturer: {part.title()}")
+                    continue
+                # Last part is always group or groups started
+                if i == len(lecutrers_and_groups) - 1 or groups_started:
+                    groups.append(part)
+                    # print(f"Adding group: {part}")
+                    continue
+
+                # Now decide based on content
+                units = part.replace('.', '').lower().split(' ')
+                # If we find a digit, we assume it's a group
+                if any(char.isdigit() for char in part):
+                    groups_started = True
+                    groups.append(part)
+                    # print(f"Found digit, adding group: {part}")
+                    continue
+
+                # Check for common lecturer indicators
+                lecturer_indicators = ['dr', 'prof', 'doc', 'asist', 'demonstrator']
+                if any(unit == indicator for unit in units for indicator in lecturer_indicators):
+                    lecturers.append(part.title())
+                    # print(f"Found lecturer indicator, adding lecturer: {part.title()}")
+                    continue
+
+                # Check for common group indicators
+                group_indicators = ['sk', 'erasmus', 'rv', 'vs', 'un', 'mag', 'izb']
+                if any(unit == indicator for unit in units for indicator in group_indicators):
+                    groups_started = True
+                    groups.append(part)
+                    # print(f"Found group indicator, adding group: {part}")
+                    continue
+
+                # If there's only one word, assume it's a group
+                if len(units) == 1:
+                    groups_started = True
+                    groups.append(part)
+                    # print(f"Single unit, assuming group, adding: {part}")
+                    continue
+
+                # Default to lecturer if none of the above matched
+                lecturers.append(part.title())
+                # print(f"Defaulting to lecturer, adding: {part.title()}")
+
+            slot.lecturer = ", ".join(lecturers)
+            slot.groups = [group.strip() for group in groups]
+
             slot.start_time = component.get('DTSTART').dt
             slot.end_time = component.get('DTEND').dt
             events.append(slot)
@@ -163,18 +223,18 @@ def get_session_filters(slots):
 import yaml
 import json
 if __name__ == "__main__":
-    slots = get_slots('calendar.ics')
+    slots = get_slots('calendar(2).ics')
     # for slot in slots:
     #     print(f"{slot.course} ({slot.ctype}) by {slot.lecturer} at {slot.location} from {slot.start_time} to {slot.end_time}, Groups: {', '.join(slot.groups)} Hash: {slot.hash()}")
     # filters = get_session_filters(slots)
     # for f in filters:
     #     print(f"Course: {f[0]}, Type: {f[1]}, Group: {f[2]}")
-    # groups = set([g for slot in slots for g in slot.groups])
-    # print("All groups:")
-    # for g in sorted(list(groups)):
-    #     print(f" - {g}")
-    settings = yaml.safe_load(open('settings.yaml', 'r', encoding='utf-8'))
-    slots_fmt = [slot.to_gcal(settings['format']) for slot in slots]
-    slots_fmt = [slot for slot in slots_fmt if slot is not None]
-    for slot in slots_fmt:
-        print(json.dumps(slot, indent=2, ensure_ascii=False))
+    groups = set([g for slot in slots for g in slot.groups])
+    print("All groups:")
+    for g in sorted(list(groups)):
+        print(f" - {g}")
+    # settings = yaml.safe_load(open('settings.yaml', 'r', encoding='utf-8'))
+    # slots_fmt = [slot.to_gcal(settings['format']) for slot in slots]
+    # slots_fmt = [slot for slot in slots_fmt if slot is not None]
+    # for slot in slots_fmt:
+    #     print(json.dumps(slot, indent=2, ensure_ascii=False))
