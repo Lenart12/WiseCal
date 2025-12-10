@@ -113,6 +113,7 @@ def sync_slots(slots, settings):
     final_synced_ids = set(synced) | set(inserted_ids)
     final_synced_ids -= set(deleted_ids)
     gcal.save_synced_event_ids(owner, list(final_synced_ids))
+    gcal.set_last_update_time(owner)
 
     if insert_errors or delete_errors:
         logger.warning(f"Sync completed for {owner} with errors: {len(insert_errors)} insert failures, {len(delete_errors)} delete failures")

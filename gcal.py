@@ -6,6 +6,8 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 import yaml
+import datetime
+import zoneinfo
 
 BASE_DATA_DIR = pathlib.Path(os.getenv('WISECAL_DATA_DIR', './wc_data'))
 
@@ -98,6 +100,22 @@ def load_synced_event_ids(user: str) -> list[str]:
     with open(synced_events_fn, 'r') as fh:
         event_ids = [line.strip() for line in fh if line.strip()]
     return event_ids
+
+_LJUBLJANA_TZ = zoneinfo.ZoneInfo('Europe/Ljubljana')
+def get_last_update_time(user: str) -> datetime.datetime | None:
+    update_fn = BASE_DATA_DIR / 'synced_events' / f'{user}_last_update.txt'
+    if not update_fn.exists():
+        return None
+    with open(update_fn, 'r') as fh:
+        timestamp = float(fh.read().strip())
+    return datetime.datetime.fromtimestamp(timestamp, _LJUBLJANA_TZ)
+
+def set_last_update_time(user: str, timestamp: float = None):
+    if timestamp is None:
+        timestamp = datetime.datetime.now(_LJUBLJANA_TZ).timestamp()
+    update_fn = BASE_DATA_DIR / 'synced_events' / f'{user}_last_update.txt'
+    with open(update_fn, 'w') as fh:
+        fh.write(str(timestamp))
 
 def save_synced_event_ids(user: str, events: list[str]):
     synced_events_fn = BASE_DATA_DIR / 'synced_events' / f'{user}.txt'

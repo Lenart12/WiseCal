@@ -58,14 +58,11 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'WiseCal-CHANGE-THIS')
 scheduler = BackgroundScheduler()
 LJUBLJANA_TZ = ZoneInfo('Europe/Ljubljana')
 last_check_time = None
-last_update_time = None
 
 def wisecal_sync_task():
-    global last_check_time, last_update_time
+    global last_check_time
     calendar_updated = wisecal_cron.main()
     last_check_time = datetime.now(LJUBLJANA_TZ)
-    if calendar_updated:
-        last_update_time = last_check_time
 
 sync_job = scheduler.add_job(wisecal_sync_task, 'interval', minutes=15, max_instances=1)
 logger.info("Starting background scheduler for calendar sync...")
@@ -73,17 +70,18 @@ scheduler.start()
 
 @app.route('/')
 def index():
-  global last_check_time, last_update_time
-
+  global last_check_time
   email = flask.session.get('email')
 
   if not email:
     has_settings = False
     calendar_enabled = False
+    last_update_time = None
   else:
     try:
       calendar_enabled = gcal.get_calendar_enabled(email)
       has_settings = True
+      last_update_time = gcal.get_last_update_time(email)
     except FileNotFoundError:
       has_settings = False
       calendar_enabled = False
