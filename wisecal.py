@@ -1,3 +1,6 @@
+import dotenv
+dotenv.load_dotenv()
+
 import os
 import flask
 from flask import request
