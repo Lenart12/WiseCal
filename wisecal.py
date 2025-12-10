@@ -71,10 +71,26 @@ scheduler.start()
 @app.route('/')
 def index():
   global last_check_time, last_update_time
+
+  email = flask.session.get('email')
+
+  if not email:
+    has_settings = False
+    calendar_enabled = False
+  else:
+    try:
+      calendar_enabled = gcal.get_calendar_enabled(email)
+      has_settings = True
+    except FileNotFoundError:
+      has_settings = False
+      calendar_enabled = False
+
   return flask.render_template('index.html',
-                email=flask.session.get('email'),
+                email=email,
                 last_check_time=last_check_time,
                 last_update_time=last_update_time,
+                has_settings=has_settings,
+                calendar_enabled=calendar_enabled,
                 )
 
 @app.route('/authorize')
@@ -357,23 +373,31 @@ def configure():
                                existing_format=existing_format)
 
   
-@app.route('/stop')
-def stop():
+@app.route('/sync/<start_stop>')
+def toggle_sync(start_stop):
   email = flask.session.get('email')
   if not email:
     return flask.redirect('/')
+  
+  if start_stop == 'start':
+    enabled = True
+  elif start_stop == 'stop':
+    enabled = False
+  else:
+    return flask.render_template('error.html',
+      message='Neveljavna zahteva.',
+      details='Zahteva mora biti bodisi "start" ali "stop".',
+      back_url='/', back_text='Nazaj na začetek')
 
-  settings_fn = gcal.BASE_DATA_DIR / 'settings' / f"{email}.json"
-  if not settings_fn.exists():
+  try:
+    gcal.set_calendar_enabled(email, enabled)
+  except FileNotFoundError:
     return flask.render_template('error.html',
       message='Koledar ni nastavljen.',
       details='Za vaš račun ni bilo mogoče najti nastavitev koledarja.',
       help_tips=['Najprej nastavite koledar', 'Preverite, da ste prijavljeni s pravilnim računom'],
       back_url='/', back_text='Nazaj na začetek')
-  settings = yaml.safe_load(open(settings_fn, 'r'))
-  settings['calendar']['enabled'] = False
-  with open(settings_fn, 'w') as fh:
-    yaml.safe_dump(settings, fh)
+
   return flask.render_template('success.html', title='Sinhronizacija ustavljena', stopped=True)
 
 os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'

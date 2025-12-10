@@ -240,9 +240,17 @@
                     <a href="/setup" class="btn btn-primary">
                         <span>⚙️</span> Nastavi koledar
                     </a>
-                    <a href="/stop" class="btn btn-danger">
-                        <span>⏹️</span> Ustavi sinhronizacijo
-                    </a>
+                    {% if has_settings %}
+                        {% if not calendar_enabled %}
+                            <a href="/sync/start" class="btn btn-secondary">
+                                <span>▶️</span> Začni sinhronizacijo
+                            </a>
+                        {% else %}
+                            <a href="/sync/stop" class="btn btn-secondary">
+                                <span>⏸️</span> Zaustavi sinhronizacijo
+                            </a>
+                        {% endif %}
+                    {% endif %}
                 </div>
                 <div class="status-info">
                     <div class="status-row">

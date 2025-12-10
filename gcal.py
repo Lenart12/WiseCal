@@ -83,6 +83,14 @@ def set_calendar_enabled(user: str, enabled: bool):
     with open(settings_fn, 'w') as fh:
         yaml.safe_dump(settings, fh)
 
+def get_calendar_enabled(user: str) -> bool:
+    settings_fn = BASE_DATA_DIR / 'settings' / f'{user}.yaml'
+    if not settings_fn.exists():
+        raise FileNotFoundError(f'No settings file found for user {user} at {settings_fn}')
+    with open(settings_fn, 'r') as fh:
+        settings = yaml.safe_load(fh)
+    return settings.get('calendar', {}).get('enabled', False)
+
 def load_synced_event_ids(user: str) -> list[str]:
     synced_events_fn = BASE_DATA_DIR / 'synced_events' / f'{user}.txt'
     if not synced_events_fn.exists():
