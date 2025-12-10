@@ -149,7 +149,7 @@ def main():
                     gcal.BASE_DATA_DIR / 'calendars' / f"{tt_filename}.new.ics"
                 )
             except Exception as e:
-                logger.error(f"Failed to download timetable for {schoolcode}, {filterId}: {e}")
+                logger.error(f"Failed to download timetable for {schoolcode}, {filterId}: {str(e).splitlines()[0].strip()}")
                 continue
             old_tt = gcal.BASE_DATA_DIR / 'calendars' / f"{tt_filename}.ics"
 

@@ -298,7 +298,7 @@ def configure():
           cal_fn
       )
     except Exception as e:
-      logger.error(f"Error downloading timetable for {email}: {e}")
+      logger.error(f"Error downloading timetable for {email}: {str(e).splitlines()[0].strip()}")
       return flask.render_template('error.html',
         message='Napaka pri prenosu urnika.',
         details=str(e),
