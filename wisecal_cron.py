@@ -109,6 +109,12 @@ def sync_slots(slots, settings):
 
     if insert_errors or delete_errors:
         logger.warning(f"Sync completed for {owner} with errors: {len(insert_errors)} insert failures, {len(delete_errors)} delete failures")
+        
+        # Check if calendar might be gone
+        if gcal.check_calendar_exists(owner, cal_id) is False:
+            logger.error(f"Calendar {cal_id} for {owner} no longer exists. Disabling calendar sync.")
+            gcal.set_calendar_enabled(owner, False)
+            gcal.delete_calendar_id(owner)
     else:
         logger.info(f"Sync completed for {owner}: {len(inserted_ids)} inserted, {len(deleted_ids)} deleted")
 

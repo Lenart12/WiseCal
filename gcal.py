@@ -5,6 +5,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+import yaml
 
 BASE_DATA_DIR = pathlib.Path(os.getenv('WISECAL_DATA_DIR', './wc_data'))
 
@@ -55,6 +56,32 @@ def create_calendar(user: str, name: str):
     with open(cal_id_fn, 'w') as fh:
         fh.write(cal_id)
     return cal_id
+
+def check_calendar_exists(user: str, cal_id: str) -> bool:
+    service = get_cal_service(user)
+    try:
+        service.calendars().get(calendarId=cal_id).execute()
+        return True
+    except HttpError as e:
+        if e.resp.status == 404:
+            return False
+        else:
+            raise
+
+def delete_calendar_id(user: str):
+    cal_id_fn = BASE_DATA_DIR / 'cal_ids' / f'{user}.txt'
+    if cal_id_fn.exists():
+        cal_id_fn.unlink()
+
+def set_calendar_enabled(user: str, enabled: bool):
+    settings_fn = BASE_DATA_DIR / 'settings' / f'{user}.yaml'
+    if not settings_fn.exists():
+        raise FileNotFoundError(f'No settings file found for user {user} at {settings_fn}')
+    with open(settings_fn, 'r') as fh:
+        settings = yaml.safe_load(fh)
+    settings.setdefault('calendar', {})['enabled'] = enabled
+    with open(settings_fn, 'w') as fh:
+        yaml.safe_dump(settings, fh)
 
 def load_synced_event_ids(user: str) -> list[str]:
     synced_events_fn = BASE_DATA_DIR / 'synced_events' / f'{user}.txt'
