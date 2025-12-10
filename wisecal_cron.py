@@ -143,10 +143,14 @@ def main():
         for filterId in jobs[schoolcode]:
             tt_filename = schoolcode + "_" + filterId
             logger.debug(f"Downloading timetable: {schoolcode}, {filterId}")
-            new_tt = wise_tt.download_ical(
-                {'schoolcode': schoolcode, 'filterId': filterId},
-                gcal.BASE_DATA_DIR / 'calendars' / f"{tt_filename}.new.ics"
-            )
+            try:
+                new_tt = wise_tt.download_ical(
+                    {'schoolcode': schoolcode, 'filterId': filterId},
+                    gcal.BASE_DATA_DIR / 'calendars' / f"{tt_filename}.new.ics"
+                )
+            except Exception as e:
+                logger.error(f"Failed to download timetable for {schoolcode}, {filterId}: {e}")
+                continue
             old_tt = gcal.BASE_DATA_DIR / 'calendars' / f"{tt_filename}.ics"
 
             has_force_sync = any(settings.get('calendar', {}).get('force_sync', False) for settings in jobs[schoolcode][filterId])
