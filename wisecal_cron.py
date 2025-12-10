@@ -4,6 +4,7 @@ import yaml
 import filecmp
 import logging
 import copy
+from google.auth.exceptions import RefreshError
 
 # Configure logging
 logging.basicConfig(
@@ -39,7 +40,13 @@ def sync_slots(slots, settings):
 
     logger.info(f"Syncing for {owner}: {len(to_insert)} to insert, {len(to_delete)} to delete, {len(synced)} unchanged")
 
-    service = gcal.get_cal_service(owner)
+    try:
+        service = gcal.get_cal_service(owner)
+    except RefreshError as e:
+        logger.error(f"Failed to refresh credentials for {owner}: {e}")
+        gcal.set_calendar_enabled(owner, False)
+        return
+
     cal_id = gcal.get_cal_id(owner)
     if not cal_id:
         cal_id = gcal.create_calendar(owner, settings['calendar']['title'])
