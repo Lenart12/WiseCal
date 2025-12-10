@@ -384,8 +384,10 @@ def toggle_sync(start_stop):
   
   if start_stop == 'start':
     enabled = True
+    title = "Sinhronizacija vklopljena"
   elif start_stop == 'stop':
     enabled = False
+    title = "Sinhronizacija ustavljena"
   else:
     return flask.render_template('error.html',
       message='Neveljavna zahteva.',
@@ -401,7 +403,7 @@ def toggle_sync(start_stop):
       help_tips=['Najprej nastavite koledar', 'Preverite, da ste prijavljeni s pravilnim računom'],
       back_url='/', back_text='Nazaj na začetek')
 
-  return flask.render_template('success.html', title='Sinhronizacija ustavljena', stopped=True)
+  return flask.render_template('success.html', title=title, stopped=not enabled)
 
 os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'
 
