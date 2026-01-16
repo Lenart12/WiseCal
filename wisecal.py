@@ -5,17 +5,19 @@ import os
 import flask
 from flask import request
 from werkzeug.middleware.proxy_fix import ProxyFix
+from flask_wtf.csrf import CSRFProtect
 import yaml
 import gcal
 import json
 import re
 import logging
+from functools import wraps
 
 import google.oauth2.id_token
 import google_auth_oauthlib.flow
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import wise_tt
@@ -53,6 +55,27 @@ if TRUSTED_PROXY_COUNT > 0:
 # If you use this code in your application, replace this with a truly secret
 # key. See https://flask.palletsprojects.com/quickstart/#sessions.
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'WiseCal-CHANGE-THIS')
+
+# Initialize CSRF protection
+csrf = CSRFProtect(app)
+
+# Admin email list from environment variable
+ADMIN_EMAILS = [email.strip() for email in os.environ.get('WISECAL_ADMIN', '').split(',') if email.strip()]
+
+def is_admin():
+    """Check if the current user is an admin."""
+    email = flask.session.get('email')
+    return email in ADMIN_EMAILS
+
+def require_admin(f):
+    """Decorator to require admin authentication for a route."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not is_admin():
+            flask.flash('Access denied. Admin privileges required.', 'error')
+            return flask.redirect('/')
+        return f(*args, **kwargs)
+    return decorated_function
 
 
 scheduler = BackgroundScheduler()
@@ -92,6 +115,7 @@ def index():
                 last_update_time=last_update_time,
                 has_settings=has_settings,
                 calendar_enabled=calendar_enabled,
+                is_admin=is_admin()
                 )
 
 @app.route('/authorize')
@@ -374,7 +398,7 @@ def configure():
                                existing_format=existing_format)
 
   
-@app.route('/sync/<start_stop>')
+@app.route('/sync/<start_stop>', methods=['POST'])
 def toggle_sync(start_stop):
   email = flask.session.get('email')
   if not email:
@@ -402,6 +426,376 @@ def toggle_sync(start_stop):
       back_url='/', back_text='Nazaj na začetek')
 
   return flask.render_template('success.html', title=title, stopped=not enabled)
+
+# ==================== ADMIN ROUTES ====================
+
+@app.route('/admin')
+@require_admin
+def admin_dashboard():
+  """Admin dashboard with system health and user management."""
+  global last_check_time
+  
+  settings_dir = gcal.BASE_DATA_DIR / 'settings'
+  credentials_dir = gcal.BASE_DATA_DIR / 'credentials'
+  synced_dir = gcal.BASE_DATA_DIR / 'synced_events'
+  calendars_dir = gcal.BASE_DATA_DIR / 'calendars'
+  
+  # Collect user data
+  users = []
+  total_events = 0
+  active_count = 0
+  disabled_count = 0
+  
+  for settings_fn in sorted(settings_dir.glob('*.yaml')):
+    email = settings_fn.stem
+    try:
+      settings = yaml.safe_load(open(settings_fn, 'r'))
+      calendar_config = settings.get('calendar', {})
+      enabled = calendar_config.get('enabled', False)
+      
+      # Count events for this user
+      synced_file = synced_dir / f"{email}.txt"
+      event_count = 0
+      if synced_file.exists():
+        event_count = len(open(synced_file).readlines())
+      total_events += event_count
+      
+      # Get last update time
+      last_update = gcal.get_last_update_time(email)
+      
+      # Check if stale (no update in 7+ days)
+      is_stale = False
+      if last_update is None or last_update < datetime.now(LJUBLJANA_TZ) - timedelta(days=7):
+        is_stale = True
+      
+      if enabled:
+        active_count += 1
+      else:
+        disabled_count += 1
+      
+      users.append({
+        'email': email,
+        'enabled': enabled,
+        'title': calendar_config.get('title', 'N/A'),
+        'schoolcode': calendar_config.get('timetable', {}).get('schoolcode', 'N/A'),
+        'filterId': calendar_config.get('timetable', {}).get('filterId', 'N/A'),
+        'event_count': event_count,
+        'last_update': last_update,
+        'is_stale': is_stale,
+        'force_sync': calendar_config.get('force_sync', False)
+      })
+    except Exception as e:
+      logger.error(f"Error loading settings for {email}: {e}")
+      users.append({
+        'email': email,
+        'enabled': False,
+        'title': 'ERROR',
+        'schoolcode': 'N/A',
+        'filterId': 'N/A',
+        'event_count': 0,
+        'last_update': None,
+        'is_stale': True,
+        'force_sync': False
+      })
+  
+  # System health stats
+  total_registered = len(list(credentials_dir.glob('*.json')))
+  total_configured = len(users)
+  unique_timetables = len([f for f in calendars_dir.glob('*.ics') if not f.name.endswith('.new.ics')])
+  
+  # Calculate disk usage
+  try:
+    disk_usage_bytes = sum(f.stat().st_size for f in gcal.BASE_DATA_DIR.rglob('*') if f.is_file())
+    disk_usage_mb = disk_usage_bytes / (1024 * 1024)
+  except Exception:
+    disk_usage_mb = 0
+  
+  # Scheduler info
+  next_run_time = sync_job.next_run_time if sync_job else None
+  
+  # Timetable info with detailed data
+  timetables = []
+  for cal_file in sorted(calendars_dir.glob('*.ics')):
+    if not cal_file.name.endswith('.new.ics'):
+      size_kb = cal_file.stat().st_size / 1024
+      
+      # Parse filename to extract schoolcode and filterId
+      # Format: {schoolcode}_{filterId}.ics
+      # schoolcode can contain _, filterId only contains digits, commas, and semicolons
+      # So we split from the right to find the filterId
+      filename_stem = cal_file.stem
+      parts = filename_stem.rsplit('_', 1)
+      if len(parts) == 2 and re.match(r'^[\d,;]+$', parts[1]):
+        schoolcode = parts[0]
+        filterId = parts[1]
+      else:
+        schoolcode = filename_stem
+        filterId = 'N/A'
+      
+      # Count slots in the timetable
+      slot_count = 0
+      try:
+        slots = wise_tt.get_slots(cal_file)
+        slot_count = len(slots)
+      except Exception:
+        slot_count = 0
+      
+      # Find users using this timetable
+      users_using = []
+      for user_data in users:
+        if user_data['schoolcode'] == schoolcode and user_data['filterId'] == filterId:
+          users_using.append(user_data['email'])
+      
+      # Get last modified time
+      last_modified = datetime.fromtimestamp(cal_file.stat().st_mtime, LJUBLJANA_TZ)
+      
+      timetables.append({
+        'filename': cal_file.name,
+        'schoolcode': schoolcode,
+        'filterId': filterId,
+        'size_kb': size_kb,
+        'slot_count': slot_count,
+        'users_using': users_using,
+        'last_modified': last_modified
+      })
+  
+  return flask.render_template('admin_dashboard.html',
+                               users=users,
+                               total_registered=total_registered,
+                               total_configured=total_configured,
+                               active_count=active_count,
+                               disabled_count=disabled_count,
+                               total_events=total_events,
+                               unique_timetables=unique_timetables,
+                               disk_usage_mb=disk_usage_mb,
+                               last_check_time=last_check_time,
+                               next_run_time=next_run_time,
+                               timetables=timetables)
+
+@app.route('/admin/user/<email>')
+@require_admin
+def admin_user_detail(email):
+  """View detailed information about a specific user."""
+  settings_fn = gcal.BASE_DATA_DIR / 'settings' / f"{email}.yaml"
+  
+  if not settings_fn.exists():
+    flask.flash(f'User {email} not found', 'error')
+    return flask.redirect('/admin')
+  
+  settings = yaml.safe_load(open(settings_fn, 'r'))
+  
+  # Get synced event count
+  synced_file = gcal.BASE_DATA_DIR / 'synced_events' / f"{email}.txt"
+  event_count = 0
+  if synced_file.exists():
+    event_count = len(open(synced_file).readlines())
+  
+  last_update = gcal.get_last_update_time(email)
+  
+  return flask.render_template('admin_user_detail.html',
+                               email=email,
+                               settings=settings,
+                               settings_yaml=yaml.safe_dump(settings, default_flow_style=False),
+                               event_count=event_count,
+                               last_update=last_update)
+
+@app.route('/admin/force-sync/<email>', methods=['POST'])
+@require_admin
+def admin_force_sync_user(email):
+  """Force sync for a specific user."""
+  settings_fn = gcal.BASE_DATA_DIR / 'settings' / f"{email}.yaml"
+  
+  if not settings_fn.exists():
+    flask.flash(f'User {email} not found', 'error')
+    return flask.redirect('/admin')
+  
+  try:
+    settings = yaml.safe_load(open(settings_fn, 'r'))
+    settings.setdefault('calendar', {})['force_sync'] = True
+    with open(settings_fn, 'w') as f:
+      yaml.safe_dump(settings, f)
+    
+    # Trigger immediate scheduler run
+    sync_job.modify(next_run_time=datetime.now())
+    
+    logger.info(f"Admin forced sync for user: {email}")
+    flask.flash(f'Force sync triggered for {email}', 'success')
+  except Exception as e:
+    logger.error(f"Error forcing sync for {email}: {e}")
+    flask.flash(f'Error: {str(e)}', 'error')
+  
+  return flask.redirect('/admin')
+
+@app.route('/admin/disable/<email>', methods=['POST'])
+@require_admin
+def admin_disable_user(email):
+  """Disable calendar sync for a user."""
+  try:
+    gcal.set_calendar_enabled(email, False)
+    logger.info(f"Admin disabled calendar for user: {email}")
+    flask.flash(f'Calendar disabled for {email}', 'success')
+  except FileNotFoundError:
+    flask.flash(f'User {email} not found', 'error')
+  except Exception as e:
+    logger.error(f"Error disabling calendar for {email}: {e}")
+    flask.flash(f'Error: {str(e)}', 'error')
+  
+  return flask.redirect('/admin')
+
+@app.route('/admin/enable/<email>', methods=['POST'])
+@require_admin
+def admin_enable_user(email):
+  """Enable calendar sync for a user."""
+  try:
+    gcal.set_calendar_enabled(email, True)
+    logger.info(f"Admin enabled calendar for user: {email}")
+    flask.flash(f'Calendar enabled for {email}', 'success')
+  except FileNotFoundError:
+    flask.flash(f'User {email} not found', 'error')
+  except Exception as e:
+    logger.error(f"Error enabling calendar for {email}: {e}")
+    flask.flash(f'Error: {str(e)}', 'error')
+  
+  return flask.redirect('/admin')
+
+# ==================== BULK OPERATIONS ====================
+
+@app.route('/admin/bulk/force_sync_all', methods=['POST'])
+@require_admin
+def admin_bulk_force_sync_all():
+  """Force sync for all users."""
+  settings_dir = gcal.BASE_DATA_DIR / 'settings'
+  success_count = 0
+  errors = []
+  
+  for settings_fn in settings_dir.glob('*.yaml'):
+    email = settings_fn.stem
+    try:
+      settings = yaml.safe_load(open(settings_fn, 'r'))
+      settings.setdefault('calendar', {})['force_sync'] = True
+      with open(settings_fn, 'w') as f:
+        yaml.safe_dump(settings, f)
+      success_count += 1
+    except Exception as e:
+      errors.append(f"{email}: {str(e)}")
+  
+  # Trigger immediate scheduler run
+  if success_count > 0:
+    sync_job.modify(next_run_time=datetime.now())
+  
+  logger.info(f"Admin forced sync for all users: {success_count} successful, {len(errors)} errors")
+  
+  if errors:
+    flask.flash(f'Force sync set for {success_count} users with {len(errors)} errors', 'warning')
+  else:
+    flask.flash(f'Force sync triggered for all {success_count} users', 'success')
+  
+  return flask.redirect('/admin')
+
+@app.route('/admin/bulk/disable_all', methods=['POST'])
+@require_admin
+def admin_bulk_disable_all():
+  """Disable all calendars."""
+  settings_dir = gcal.BASE_DATA_DIR / 'settings'
+  success_count = 0
+  errors = []
+  
+  for settings_fn in settings_dir.glob('*.yaml'):
+    email = settings_fn.stem
+    try:
+      gcal.set_calendar_enabled(email, False)
+      success_count += 1
+    except Exception as e:
+      errors.append(f"{email}: {str(e)}")
+  
+  logger.info(f"Admin disabled all calendars: {success_count} successful, {len(errors)} errors")
+  
+  if errors:
+    flask.flash(f'Disabled {success_count} calendars with {len(errors)} errors', 'warning')
+  else:
+    flask.flash(f'All {success_count} calendars disabled', 'success')
+  
+  return flask.redirect('/admin')
+
+@app.route('/admin/bulk/enable_all', methods=['POST'])
+@require_admin
+def admin_bulk_enable_all():
+  """Enable all calendars."""
+  settings_dir = gcal.BASE_DATA_DIR / 'settings'
+  success_count = 0
+  errors = []
+  
+  for settings_fn in settings_dir.glob('*.yaml'):
+    email = settings_fn.stem
+    try:
+      gcal.set_calendar_enabled(email, True)
+      success_count += 1
+    except Exception as e:
+      errors.append(f"{email}: {str(e)}")
+  
+  logger.info(f"Admin enabled all calendars: {success_count} successful, {len(errors)} errors")
+  
+  if errors:
+    flask.flash(f'Enabled {success_count} calendars with {len(errors)} errors', 'warning')
+  else:
+    flask.flash(f'All {success_count} calendars enabled', 'success')
+  
+  return flask.redirect('/admin')
+
+@app.route('/admin/bulk/redownload_timetables', methods=['POST'])
+@require_admin
+def admin_bulk_redownload_timetables():
+  """Delete all cached timetables to force re-download."""
+  calendars_dir = gcal.BASE_DATA_DIR / 'calendars'
+  success_count = 0
+  errors = []
+  
+  for cal_file in calendars_dir.glob('*.ics'):
+    if not cal_file.name.endswith('.new.ics'):
+      try:
+        cal_file.unlink()
+        success_count += 1
+      except Exception as e:
+        errors.append(f"{cal_file.name}: {str(e)}")
+  
+  # Trigger immediate sync to re-download
+  if success_count > 0:
+    sync_job.modify(next_run_time=datetime.now())
+  
+  logger.info(f"Admin deleted timetables: {success_count} successful, {len(errors)} errors")
+  
+  if errors:
+    flask.flash(f'Deleted {success_count} timetables with {len(errors)} errors', 'warning')
+  else:
+    flask.flash(f'All {success_count} timetables deleted and sync triggered', 'success')
+  
+  return flask.redirect('/admin')
+
+@app.route('/admin/bulk/clear_sync_state', methods=['POST'])
+@require_admin
+def admin_bulk_clear_sync_state():
+  """Clear sync state for all users."""
+  synced_dir = gcal.BASE_DATA_DIR / 'synced_events'
+  success_count = 0
+  errors = []
+  
+  for synced_file in synced_dir.glob('*.txt'):
+    try:
+      synced_file.unlink()
+      success_count += 1
+    except Exception as e:
+      errors.append(f"{synced_file.name}: {str(e)}")
+  
+  logger.info(f"Admin cleared sync state: {success_count} files deleted, {len(errors)} errors")
+  
+  if errors:
+    flask.flash(f'Cleared {success_count} sync state files with {len(errors)} errors', 'warning')
+  else:
+    flask.flash(f'All {success_count} sync state files cleared', 'success')
+  
+  return flask.redirect('/admin')
+
+# ==================== END ADMIN ROUTES ====================
 
 os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'
 

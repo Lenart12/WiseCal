@@ -8,6 +8,8 @@ WiseCal is a web application that automatically syncs your Wise TT school timeta
 - OAuth 2.0 authentication with Google
 - Automatic background synchronization (every 15 minutes)
 - Customizable event formatting per course and type (lectures/exercises)
+- **Admin dashboard** for multi-user management and system monitoring
+- **CSRF protection** for all state-changing operations
 - Docker support for easy deployment
 
 ## Installation
@@ -79,9 +81,55 @@ The application will be available at `http://localhost:5187`.
 |----------|-------------|----------|
 | `OAUTH_CLIENT_SECRETS` | Google OAuth 2.0 client secrets JSON | Yes |
 | `FLASK_SECRET_KEY` | Secret key for Flask sessions | Yes |
+| `WISECAL_ADMIN` | Comma-separated list of admin email addresses | No |
 | `WISECAL_DATA_DIR` | Directory for storing user data (default: `./wc_data`) | No |
 | `OAUTHLIB_INSECURE_TRANSPORT` | Set to `1` for development without HTTPS | No |
 | `TRUSTED_PROXY_COUNT` | Number of reverse proxies to trust | No |
+
+## Admin Features
+
+WiseCal includes a comprehensive admin dashboard for managing multiple users and monitoring system health.
+
+### Setting Up Admin Access
+Add admin email addresses to the `WISECAL_ADMIN` environment variable (comma-separated for multiple admins):
+```bash
+WISECAL_ADMIN=admin@example.com,admin2@example.com
+```
+
+Admins will see an "Admin Dashboard" button on the home page after signing in with their admin email.
+
+### Admin Dashboard Features
+
+**System Health Monitoring:**
+- Total registered users and configured calendars
+- Active vs. disabled calendar count
+- Total synced events across all users
+- Unique timetables being monitored
+- Disk usage statistics
+- Last and next scheduler run times
+
+**Per-User Management:**
+- View all users with their status, last sync time, and event count
+- Force sync for individual users
+- Enable/disable calendars for specific users
+- Identify stale users (no sync in 7+ days)
+
+**Bulk Operations:**
+- **Force Sync All Users** - Triggers immediate sync for all calendars
+- **Enable All Calendars** - Enables sync for all users
+- **Disable All Calendars** - Disables sync for all users
+- **Re-download Timetables** - Clears cached timetables and forces fresh download
+- **Clear All Sync State** - Resets sync state to trigger full re-sync
+
+**Security:**
+- All state-changing operations are protected with CSRF tokens
+- Admin-only routes redirect non-admin users to home page
+- Confirmation prompts for destructive bulk operations
+
+### Accessing Admin Dashboard
+1. Sign in with an email address listed in `WISECAL_ADMIN`
+2. Click "🛡️ Admin Dashboard" button on the home page
+3. View system stats, manage users, and perform bulk operations
 
 ## Usage
 1. Open the web interface in your browser

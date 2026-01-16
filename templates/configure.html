@@ -438,6 +438,7 @@
         </div>
 
         <form action="configure" method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <input type="hidden" id="title" name="title" value="{{ title }}">
             <input type="hidden" id="schoolcode" name="schoolcode" value="{{ schoolcode }}">
             <input type="hidden" id="filterId" name="filterId" value="{{ filterId }}">

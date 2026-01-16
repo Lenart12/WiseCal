@@ -237,18 +237,29 @@
                 <p class="subtitle">Sinhroniziraj svoj Google Koledar iz Wise Timetable urnika</p>
                 <div class="user-email">{{ email }}</div>
                 <div class="menu">
+                    {% if is_admin %}
+                        <a href="/admin" class="btn btn-primary" style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);">
+                            <span>🛡️</span> Admin Dashboard
+                        </a>
+                    {% endif %}
                     <a href="/setup" class="btn btn-primary">
                         <span>⚙️</span> Nastavi koledar
                     </a>
                     {% if has_settings %}
                         {% if not calendar_enabled %}
-                            <a href="/sync/start" class="btn btn-secondary">
-                                <span>▶️</span> Začni sinhronizacijo
-                            </a>
+                            <form method="POST" action="/sync/start" style="width: 100%;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <button type="submit" class="btn btn-secondary" style="width: 100%;">
+                                    <span>▶️</span> Začni sinhronizacijo
+                                </button>
+                            </form>
                         {% else %}
-                            <a href="/sync/stop" class="btn btn-secondary">
-                                <span>⏸️</span> Zaustavi sinhronizacijo
-                            </a>
+                            <form method="POST" action="/sync/stop" style="width: 100%;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <button type="submit" class="btn btn-secondary" style="width: 100%;">
+                                    <span>⏸️</span> Zaustavi sinhronizacijo
+                                </button>
+                            </form>
                         {% endif %}
                     {% endif %}
                 </div>
