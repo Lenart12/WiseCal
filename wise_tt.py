@@ -207,6 +207,12 @@ def get_slots(ical_path):
 
             slot.start_time = component.get('DTSTART').dt
             slot.end_time = component.get('DTEND').dt
+
+            duration = slot.end_time - slot.start_time
+            if duration.total_seconds() <= 0 or duration.total_seconds() > 8 * 3600:
+                print(f"Warning: Invalid duration for event '{slot.course}' from {slot.start_time} to {slot.end_time} - skipping.")
+                continue
+
             events.append(slot)
     return events
 
