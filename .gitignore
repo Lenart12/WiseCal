@@ -18,3 +18,5 @@ wheels/
 # Google API
 client_secret*.json
 wc_data
+wisecal_wisecal_data
+.vscode

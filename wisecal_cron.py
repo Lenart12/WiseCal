@@ -57,12 +57,19 @@ def sync_slots(slots, settings):
     deleted_ids = []
     insert_errors = []
     delete_errors = []
-
+    events_needing_update = []
+    
     def make_insert_callback(slot_id):
         def callback(_, __, exception):
             if exception is not None:
-                insert_errors.append((slot_id, exception))
-                logger.error(f"Failed to insert event {slot_id}: {exception}")
+                # 409 errors on insert mean event already exists - we'll update it
+                if hasattr(exception, 'resp') and exception.resp.status == 409:
+                    events_needing_update.append(slot_id)
+                    logger.debug(f"Event {slot_id} already exists (409), will update instead")
+                else:
+                    insert_errors.append((slot_id, exception))
+                    error_msg = getattr(exception, 'content', str(exception)) if exception else 'Unknown error'
+                    logger.error(f"Failed to insert event {slot_id}: {error_msg}")
             else:
                 inserted_ids.append(slot_id)
         return callback
@@ -75,7 +82,8 @@ def sync_slots(slots, settings):
                     deleted_ids.append(slot_id)
                 else:
                     delete_errors.append((slot_id, exception))
-                    logger.error(f"Failed to delete event {slot_id}: {exception}")
+                    error_msg = getattr(exception, 'content', str(exception)) if exception else 'Unknown error'
+                    logger.error(f"Failed to delete event {slot_id}: {error_msg}")
             else:
                 deleted_ids.append(slot_id)
         return callback
@@ -108,6 +116,49 @@ def sync_slots(slots, settings):
             batch_count += 1
 
         batch.execute()
+
+    # Handle events that need updating (got 409 conflict on insert)
+    if events_needing_update:
+        logger.info(f"Updating {len(events_needing_update)} existing events for {owner}")
+        updated_ids = []
+        update_errors = []
+        
+        def make_update_callback(slot_id):
+            def callback(_, __, exception):
+                if exception is not None:
+                    update_errors.append((slot_id, exception))
+                    error_msg = getattr(exception, 'content', str(exception)) if exception else 'Unknown error'
+                    logger.error(f"Failed to update event {slot_id}: {error_msg}")
+                else:
+                    updated_ids.append(slot_id)
+            return callback
+        
+        # Process updates in batches
+        update_idx = 0
+        slot_data_map = {slot['id']: slot for slot in to_insert if slot['id'] in events_needing_update}
+
+        while update_idx < len(events_needing_update):
+            batch = service.new_batch_http_request()
+            batch_count = 0
+            
+            while update_idx < len(events_needing_update) and batch_count < BATCH_SIZE:
+                slot_id = events_needing_update[update_idx]
+                slot_data = slot_data_map[slot_id]
+                batch.add(
+                    service.events().update(calendarId=cal_id, eventId=slot_id, body=slot_data),
+                    callback=make_update_callback(slot_id)
+                )
+                update_idx += 1
+                batch_count += 1
+            
+            batch.execute()
+        
+        # Add successfully updated events to inserted_ids
+        inserted_ids.extend(updated_ids)
+        # Add update errors to insert_errors
+        insert_errors.extend(update_errors)
+        
+        logger.info(f"Updated {len(updated_ids)} events, {len(update_errors)} update failures")
 
     # Update synced IDs: keep synced + successfully inserted - successfully deleted
     final_synced_ids = set(synced) | set(inserted_ids)
