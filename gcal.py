@@ -35,7 +35,7 @@ def get_cal_service(user: str):
         with open(creds_fn, 'w') as token:
             token.write(creds.to_json())
     
-    service = build('calendar', 'v3', credentials=creds)
+    service = build('calendar', 'v3', credentials=creds, cache_discovery=False)
     return service
 
 def get_cal_id(user: str) -> str:
