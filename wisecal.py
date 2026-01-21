@@ -366,14 +366,14 @@ def configure():
   pr_groups = sorted(set([g for slot in slots if slot.ctype_abbr == 'PR' for g in slot.groups]))
   rv_groups = sorted(set([g for slot in slots if slot.ctype_abbr != 'PR' for g in slot.groups]))
 
-  course_names = sorted(set([(slot.course, slot.course_abbr) for slot in slots]))
+  course_names = sorted(set([(slot.course, slot.course_slug) for slot in slots]))
   courses = []
   for cn in course_names:
     courses.append({
       'name': cn[0],
       'id': cn[1],
-      'pr_groups': sorted(set([g for slot in slots if slot.course_abbr == cn[1] and slot.ctype_abbr == 'PR' for g in slot.groups])),
-      'rv_groups': sorted(set([g for slot in slots if slot.course_abbr == cn[1] and slot.ctype_abbr != 'PR' for g in slot.groups]))
+      'pr_groups': sorted(set([g for slot in slots if slot.course_slug == cn[1] and slot.ctype_abbr == 'PR' for g in slot.groups])),
+      'rv_groups': sorted(set([g for slot in slots if slot.course_slug == cn[1] and slot.ctype_abbr != 'PR' for g in slot.groups]))
     })
 
   flask.session['courses'] = [c[1] for c in course_names]
@@ -792,6 +792,111 @@ def admin_bulk_clear_sync_state():
     flask.flash(f'Cleared {success_count} sync state files with {len(errors)} errors', 'warning')
   else:
     flask.flash(f'All {success_count} sync state files cleared', 'success')
+  
+  return flask.redirect('/admin')
+
+@app.route('/admin/migrate-keys', methods=['POST'])
+@require_admin
+def admin_migrate_keys():
+  """Migrate configuration keys from abbreviations to slugs."""
+  settings_dir = gcal.BASE_DATA_DIR / 'settings'
+  calendars_dir = gcal.BASE_DATA_DIR / 'calendars'
+  
+  success_count = 0
+  errors = []
+  migration_details = []
+  
+  for settings_fn in settings_dir.glob('*.yaml'):
+    email = settings_fn.stem
+    try:
+      # Load settings
+      settings = yaml.safe_load(open(settings_fn, 'r'))
+      calendar_config = settings.get('calendar', {})
+      format_config = settings.get('format', {})
+      
+      if not format_config:
+        continue
+      
+      # Get timetable info
+      schoolcode = calendar_config.get('timetable', {}).get('schoolcode')
+      filterId = calendar_config.get('timetable', {}).get('filterId')
+      
+      if not schoolcode or not filterId:
+        errors.append(f"{email}: Missing timetable configuration")
+        continue
+      
+      # Find and load timetable file
+      cal_filename = f"{schoolcode}_{filterId}.ics"
+      cal_path = calendars_dir / cal_filename
+      
+      if not cal_path.exists():
+        errors.append(f"{email}: Timetable file not found: {cal_filename}")
+        continue
+      
+      # Parse slots to get course names and slugs
+      slots = wise_tt.get_slots(str(cal_path))
+      
+      # Create mapping from abbreviation to slug
+      abbr_to_slug = {}
+      for slot in slots:
+        if slot.course_abbr not in abbr_to_slug:
+          abbr_to_slug[slot.course_abbr] = slot.course_slug
+      
+      # Create backup
+      backup_fn = settings_fn.with_suffix('.yaml.backup')
+      with open(backup_fn, 'w') as f:
+        yaml.dump(settings, f, allow_unicode=True)
+      
+      # Migrate format keys
+      new_format = {}
+      keys_migrated = []
+      
+      # Keep DEFAULT
+      if 'DEFAULT' in format_config:
+        new_format['DEFAULT'] = format_config['DEFAULT']
+      
+      # Migrate course-specific keys
+      for key, value in format_config.items():
+        if key == 'DEFAULT':
+          continue
+        
+        if key in abbr_to_slug:
+          new_key = abbr_to_slug[key]
+          new_format[new_key] = value
+          keys_migrated.append(f"{key} → {new_key}")
+        # else: orphaned key, not migrating (will be removed)
+      
+      # Update settings
+      settings['format'] = new_format
+      
+      # Save migrated settings
+      with open(settings_fn, 'w') as f:
+        yaml.dump(settings, f, allow_unicode=True)
+      
+      success_count += 1
+      if keys_migrated:
+        migration_details.append({
+          'email': email,
+          'keys': keys_migrated
+        })
+      
+      logger.info(f"Migrated keys for {email}: {', '.join(keys_migrated) if keys_migrated else 'no keys to migrate'}")
+      
+    except Exception as e:
+      errors.append(f"{email}: {str(e)}")
+      logger.error(f"Error migrating keys for {email}: {e}")
+  
+  logger.info(f"Admin migrated configuration keys: {success_count} successful, {len(errors)} errors")
+  
+  if errors:
+    flask.flash(f'Migrated {success_count} user settings with {len(errors)} errors', 'warning')
+    for error in errors[:5]:  # Show first 5 errors
+      flask.flash(error, 'error')
+  else:
+    flask.flash(f'Successfully migrated configuration keys for {success_count} users', 'success')
+  
+  if migration_details:
+    flask.flash(f'Migrated {sum(len(d["keys"]) for d in migration_details)} total keys', 'info')
   
   return flask.redirect('/admin')
 

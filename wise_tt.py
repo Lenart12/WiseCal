@@ -6,6 +6,43 @@ import base64
 
 WTT_API_URL = "https://www.wise-tt.com"
 
+def generate_course_slug(course_name):
+    """
+    Generate a URL-friendly slug from course name.
+    Example: "Spletne tehnologije" → "spletne-tehnologije"
+    """
+    # Convert to lowercase
+    slug = course_name.lower()
+    
+    # Replace Slovenian and common diacritics with ASCII equivalents
+    char_map = {
+        'č': 'c', 'ć': 'c',
+        'š': 's',
+        'ž': 'z',
+        'đ': 'd',
+        'ä': 'a', 'á': 'a', 'à': 'a',
+        'ö': 'o', 'ó': 'o', 'ò': 'o',
+        'ü': 'u', 'ú': 'u', 'ù': 'u',
+        'é': 'e', 'è': 'e', 'ë': 'e',
+    }
+    for old, new in char_map.items():
+        slug = slug.replace(old, new)
+    
+    # Replace spaces and underscores with hyphens
+    slug = slug.replace(' ', '-').replace('_', '-')
+    
+    # Remove any non-alphanumeric characters except hyphens
+    slug = ''.join(c for c in slug if c.isalnum() or c == '-')
+    
+    # Remove consecutive hyphens
+    while '--' in slug:
+        slug = slug.replace('--', '-')
+    
+    # Remove leading/trailing hyphens
+    slug = slug.strip('-')
+    
+    return slug
+
 def download_ical(timetable, download_path):
     with sync_playwright() as p:
         # print("Launching browser...")
@@ -31,6 +68,7 @@ def download_ical(timetable, download_path):
 class WiseSlot:
     course = "" # Course name - e.g., "Spletne tehnologije"
     course_abbr = ""  # Course abbreviation - e.g., "ST"
+    course_slug = ""  # Course slug - e.g., "spletne-tehnologije"
     ctype = ""  # Course type - e.g., "Predavanje", "Računalniške vaje", "Seminarska vaje"
     ctype_abbr = ""  # Course type abbreviation - e.g., "PR", "RV", "SV"
     groups = []  # List of groups for this course type - e.g., "MAG 1 RIT", "MAG 1 RIT RV 5"
@@ -57,7 +95,7 @@ class WiseSlot:
     def to_gcal(self, f):
         fsel = 'PR' if self.ctype_abbr == 'PR' else 'VAJE'
         df = f.get('DEFAULT', {}).get(fsel, {})
-        cf = f.get(self.course_abbr, {}).get(fsel, {})
+        cf = f.get(self.course_slug, {}).get(fsel, {})
         def v(key, default):
             return cf.get(key, df.get(key, default))
         color = v('color', None)
@@ -133,6 +171,7 @@ def get_slots(ical_path):
                 continue
             abbr_ignore = ['in']
             slot.course_abbr = "".join([word[0] for word in slot.course.split(" ") if word and word.lower() not in abbr_ignore]).upper()
+            slot.course_slug = generate_course_slug(slot.course)
             slot.ctype_abbr = dparts[1]
             ctype_map = {
                 'PR': 'Predavanje',

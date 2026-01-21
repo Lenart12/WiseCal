@@ -399,6 +399,11 @@
                 <h2 class="section-title">Bulk Operations</h2>
             </div>
             <div class="bulk-ops">
+                <form method="POST" action="/admin/migrate-keys" class="bulk-op-form" onsubmit="return confirm('Migrate configuration keys from abbreviations to slugs for ALL users? This will create backups.');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="btn btn-primary">🔧 Migrate Configuration Keys</button>
+                </form>
+                
                 <form method="POST" action="/admin/bulk/force_sync_all" class="bulk-op-form" onsubmit="return confirm('Force sync for ALL users?');">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                     <button type="submit" class="btn btn-primary">🔄 Force Sync All Users</button>
