@@ -399,11 +399,6 @@
                 <h2 class="section-title">Bulk Operations</h2>
             </div>
             <div class="bulk-ops">
-                <form method="POST" action="/admin/migrate-keys" class="bulk-op-form" onsubmit="return confirm('Migrate configuration keys from abbreviations to slugs for ALL users? This will create backups.');">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                    <button type="submit" class="btn btn-primary">🔧 Migrate Configuration Keys</button>
-                </form>
-                
                 <form method="POST" action="/admin/bulk/force_sync_all" class="bulk-op-form" onsubmit="return confirm('Force sync for ALL users?');">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                     <button type="submit" class="btn btn-primary">🔄 Force Sync All Users</button>
@@ -513,8 +508,8 @@
                 <table>
                     <thead>
                         <tr>
-                            <th>School Code</th>
-                            <th>Filter ID</th>
+                            <th>ID</th>
+                            <th>URL</th>
                             <th>Slots</th>
                             <th>Size</th>
                             <th>Users</th>
@@ -524,8 +519,8 @@
                     <tbody>
                         {% for tt in timetables %}
                         <tr>
-                            <td><code style="font-family: monospace; background: var(--bg); padding: 4px 8px; border-radius: 4px;">{{ tt.schoolcode }}</code></td>
-                            <td><code style="font-family: monospace; background: var(--bg); padding: 4px 8px; border-radius: 4px; font-size: 0.75rem;">{{ tt.filterId }}</code></td>
+                            <td><code style="font-family: monospace; background: var(--bg); padding: 4px 8px; border-radius: 4px;">{{ tt.id }}</code></td>
+                            <td><code style="font-family: monospace; background: var(--bg); padding: 4px 8px; border-radius: 4px; font-size: 0.75rem;" title="{{ tt.url or 'N/A' }}">{{ tt.url | truncate(60) if tt.url else 'N/A' }}</code></td>
                             <td>
                                 <span style="font-weight: 600; color: var(--primary);">{{ tt.slot_count }}</span> 
                                 <span style="color: var(--text-muted); font-size: 0.8125rem;">events</span>

@@ -10,6 +10,7 @@ import yaml
 import gcal
 import json
 import re
+import urllib.parse
 import logging
 from functools import wraps
 
@@ -90,6 +91,23 @@ def wisecal_sync_task():
 sync_job = scheduler.add_job(wisecal_sync_task, 'interval', minutes=15, max_instances=1)
 logger.info("Starting background scheduler for calendar sync...")
 scheduler.start()
+
+URL_HELP_TIPS = [
+  'Na Wise Timetable urniku izberite program, smer in letnik',
+  'Po želji dodajte filtre za predmete',
+  'Desno zgoraj odprite meni in izberite "Poročila"',
+  'Pod "Hitri izbor" izberite "Celo leto"',
+  'Desno kliknite na gumb "Koledar (.ics)" in kopirajte povezavo',
+]
+
+def is_valid_timetable_url(url):
+  if not url or len(url) > 1000:
+    return False
+  parts = urllib.parse.urlsplit(url)
+  return (parts.scheme == 'https'
+          and parts.netloc == 'www.wise-tt.com'
+          and re.match(r'^/web/[a-z0-9_-]+/reports$', parts.path) is not None
+          and urllib.parse.parse_qs(parts.query).get('format') == ['ics'])
 
 @app.route('/')
 def index():
@@ -244,24 +262,18 @@ def configure():
   
   params = request.args if flask.request.method == 'GET' else request.form
   title = params.get('title')
-  schoolcode = params.get('schoolcode')
-  filterId = params.get('filterId')
+  url = (params.get('url') or '').strip()
 
   if not title or not re.match(r'^[A-Za-z0-9 _-]{1,100}$', title):
     return flask.render_template('error.html',
       message='Ime koledarja ni veljavno.',
       details='Ime lahko vsebuje samo črke, številke, presledke, podčrtaje in vezaje (1-100 znakov).',
       back_url='/setup', back_text='Nazaj na nastavitve')
-  if not schoolcode or not re.match(r'^[a-z_]{1,20}$', schoolcode):
+  if not is_valid_timetable_url(url):
     return flask.render_template('error.html',
-      message='Šifra šole ni veljavna.',
-      details='Šifra šole lahko vsebuje samo male črke in podčrtaje (npr. um_feri).',
-      back_url='/setup', back_text='Nazaj na nastavitve')
-  if not filterId or not re.match(r'^[\d,;]{1,40}$', filterId):
-    return flask.render_template('error.html',
-      message='Filter ID ni veljaven.',
-      details='Filter ID lahko vsebuje samo številke, vejice in podpičja.',
-      help_tips=['Odpri WiseTT urnik', 'Izberi želene skupine', 'Klikni na ikono "Bookmark"', 'Kopiraj Filter ID iz URL-ja'],
+      message='Povezava do urnika ni veljavna.',
+      details='Povezava mora biti v obliki https://www.wise-tt.com/web/<šola>/reports?...&format=ics',
+      help_tips=URL_HELP_TIPS,
       back_url='/setup', back_text='Nazaj na nastavitve')
 
   if flask.request.method == 'POST':
@@ -280,8 +292,7 @@ def configure():
         'title': title,
         'force_sync': True,
         'timetable': {
-          'schoolcode': schoolcode,
-          'filterId': filterId
+          'url': url
         }
       },
       'format': {}
@@ -324,26 +335,23 @@ def configure():
     settings_fn = gcal.BASE_DATA_DIR / 'settings' / f"{email}.yaml"
     with open(settings_fn, 'w') as fh:
       yaml.safe_dump(settings, fh)
-    logger.info(f"Configuration saved for {email}: {title} ({schoolcode}, {filterId})")
+    logger.info(f"Configuration saved for {email}: {title} ({url})")
     sync_job.modify(next_run_time=datetime.now())
     logger.info(f"Scheduled immediate sync because of new configuration for {email}")
     return flask.render_template('success.html', title=title)
 
-  cal_fn = gcal.BASE_DATA_DIR / 'calendars' / f"{schoolcode}_{filterId}.ics"
+  cal_fn = gcal.BASE_DATA_DIR / 'calendars' / f"{wise_tt.timetable_id(url)}.ics"
 
   if not cal_fn.exists():
     try:
-      logger.info(f"Downloading timetable for {email}: {schoolcode}, {filterId}")
-      wise_tt.download_ical(
-          {'schoolcode': schoolcode, 'filterId': filterId},
-          cal_fn
-      )
+      logger.info(f"Downloading timetable for {email}: {url}")
+      wise_tt.download_ical(url, cal_fn)
     except Exception as e:
       logger.error(f"Error downloading timetable for {email}: {str(e).splitlines()[0].strip()}")
       return flask.render_template('error.html',
         message='Napaka pri prenosu urnika.',
         details=str(e),
-        help_tips=['Preverite, da je šifra šole pravilna', 'Preverite, da je Filter ID pravilen', 'Poskusite znova čez nekaj minut'],
+        help_tips=['Preverite, da ste kopirali celotno povezavo "Koledar (.ics)"', 'Poskusite znova čez nekaj minut'],
         back_url='/setup', back_text='Nazaj na nastavitve')
 
   try:
@@ -353,14 +361,14 @@ def configure():
     return flask.render_template('error.html',
       message='Napaka pri branju urnika.',
       details=str(e),
-      help_tips=['Preverite, da je šifra šole pravilna (npr. um_feri)', 'Preverite, da je Filter ID pravilen', 'Prepričajte se, da ima urnik aktivne termine'],
+      help_tips=['Preverite, da ste kopirali celotno povezavo "Koledar (.ics)"', 'Preverite, da je v poročilu izbrano celo leto', 'Prepričajte se, da ima urnik aktivne termine'],
       back_url='/setup', back_text='Nazaj na nastavitve')
 
   if len(slots) == 0:
     return flask.render_template('error.html',
       message='V urniku ni najdenih terminov.',
       details='Za podane podatke ni bilo mogoče najti nobenega termina.',
-      help_tips=['Preverite, da je šifra šole pravilna (npr. um_feri)', 'Preverite, da je Filter ID pravilen', 'Prepričajte se, da ima urnik aktivne termine'],
+      help_tips=['Preverite, da ste kopirali celotno povezavo "Koledar (.ics)"', 'Preverite, da je v poročilu izbrano celo leto', 'Prepričajte se, da ima urnik aktivne termine'],
       back_url='/setup', back_text='Nazaj na nastavitve')
 
   pr_groups = sorted(set([g for slot in slots if slot.ctype_abbr == 'PR' for g in slot.groups]))
@@ -390,8 +398,7 @@ def configure():
 
   return flask.render_template('configure.html',
                                title=title,
-                               schoolcode=schoolcode,
-                               filterId=filterId,
+                               url=url,
                                pr_groups=pr_groups,
                                rv_groups=rv_groups,
                                courses=courses,
@@ -477,8 +484,7 @@ def admin_dashboard():
         'email': email,
         'enabled': enabled,
         'title': calendar_config.get('title', 'N/A'),
-        'schoolcode': calendar_config.get('timetable', {}).get('schoolcode', 'N/A'),
-        'filterId': calendar_config.get('timetable', {}).get('filterId', 'N/A'),
+        'url': calendar_config.get('timetable', {}).get('url'),
         'event_count': event_count,
         'last_update': last_update,
         'is_stale': is_stale,
@@ -490,8 +496,7 @@ def admin_dashboard():
         'email': email,
         'enabled': False,
         'title': 'ERROR',
-        'schoolcode': 'N/A',
-        'filterId': 'N/A',
+        'url': None,
         'event_count': 0,
         'last_update': None,
         'is_stale': True,
@@ -519,19 +524,6 @@ def admin_dashboard():
     if not cal_file.name.endswith('.new.ics'):
       size_kb = cal_file.stat().st_size / 1024
       
-      # Parse filename to extract schoolcode and filterId
-      # Format: {schoolcode}_{filterId}.ics
-      # schoolcode can contain _, filterId only contains digits, commas, and semicolons
-      # So we split from the right to find the filterId
-      filename_stem = cal_file.stem
-      parts = filename_stem.rsplit('_', 1)
-      if len(parts) == 2 and re.match(r'^[\d,;]+$', parts[1]):
-        schoolcode = parts[0]
-        filterId = parts[1]
-      else:
-        schoolcode = filename_stem
-        filterId = 'N/A'
-      
       # Count slots in the timetable
       slot_count = 0
       try:
@@ -541,21 +533,18 @@ def admin_dashboard():
         slot_count = 0
       
       # Find users using this timetable
-      users_using = []
-      for user_data in users:
-        if user_data['schoolcode'] == schoolcode and user_data['filterId'] == filterId:
-          users_using.append(user_data['email'])
+      users_using = [u for u in users if u['url'] and wise_tt.timetable_id(u['url']) == cal_file.stem]
       
       # Get last modified time
       last_modified = datetime.fromtimestamp(cal_file.stat().st_mtime, LJUBLJANA_TZ)
       
       timetables.append({
         'filename': cal_file.name,
-        'schoolcode': schoolcode,
-        'filterId': filterId,
+        'id': cal_file.stem,
+        'url': users_using[0]['url'] if users_using else None,
         'size_kb': size_kb,
         'slot_count': slot_count,
-        'users_using': users_using,
+        'users_using': [u['email'] for u in users_using],
         'last_modified': last_modified
       })
   
@@ -610,10 +599,7 @@ def admin_force_sync_user(email):
     return flask.redirect('/admin')
   
   try:
-    settings = yaml.safe_load(open(settings_fn, 'r'))
-    settings.setdefault('calendar', {})['force_sync'] = True
-    with open(settings_fn, 'w') as f:
-      yaml.safe_dump(settings, f)
+    gcal.set_force_sync(email, True)
     
     # Trigger immediate scheduler run
     sync_job.modify(next_run_time=datetime.now())
@@ -671,10 +657,7 @@ def admin_bulk_force_sync_all():
   for settings_fn in settings_dir.glob('*.yaml'):
     email = settings_fn.stem
     try:
-      settings = yaml.safe_load(open(settings_fn, 'r'))
-      settings.setdefault('calendar', {})['force_sync'] = True
-      with open(settings_fn, 'w') as f:
-        yaml.safe_dump(settings, f)
+      gcal.set_force_sync(email, True)
       success_count += 1
     except Exception as e:
       errors.append(f"{email}: {str(e)}")
@@ -792,111 +775,6 @@ def admin_bulk_clear_sync_state():
     flask.flash(f'Cleared {success_count} sync state files with {len(errors)} errors', 'warning')
   else:
     flask.flash(f'All {success_count} sync state files cleared', 'success')
-  
-  return flask.redirect('/admin')
-
-@app.route('/admin/migrate-keys', methods=['POST'])
-@require_admin
-def admin_migrate_keys():
-  """Migrate configuration keys from abbreviations to slugs."""
-  settings_dir = gcal.BASE_DATA_DIR / 'settings'
-  calendars_dir = gcal.BASE_DATA_DIR / 'calendars'
-  
-  success_count = 0
-  errors = []
-  migration_details = []
-  
-  for settings_fn in settings_dir.glob('*.yaml'):
-    email = settings_fn.stem
-    try:
-      # Load settings
-      settings = yaml.safe_load(open(settings_fn, 'r'))
-      calendar_config = settings.get('calendar', {})
-      format_config = settings.get('format', {})
-      
-      if not format_config:
-        continue
-      
-      # Get timetable info
-      schoolcode = calendar_config.get('timetable', {}).get('schoolcode')
-      filterId = calendar_config.get('timetable', {}).get('filterId')
-      
-      if not schoolcode or not filterId:
-        errors.append(f"{email}: Missing timetable configuration")
-        continue
-      
-      # Find and load timetable file
-      cal_filename = f"{schoolcode}_{filterId}.ics"
-      cal_path = calendars_dir / cal_filename
-      
-      if not cal_path.exists():
-        errors.append(f"{email}: Timetable file not found: {cal_filename}")
-        continue
-      
-      # Parse slots to get course names and slugs
-      slots = wise_tt.get_slots(str(cal_path))
-      
-      # Create mapping from abbreviation to slug
-      abbr_to_slug = {}
-      for slot in slots:
-        if slot.course_abbr not in abbr_to_slug:
-          abbr_to_slug[slot.course_abbr] = slot.course_slug
-      
-      # Create backup
-      backup_fn = settings_fn.with_suffix('.yaml.backup')
-      with open(backup_fn, 'w') as f:
-        yaml.dump(settings, f, allow_unicode=True)
-      
-      # Migrate format keys
-      new_format = {}
-      keys_migrated = []
-      
-      # Keep DEFAULT
-      if 'DEFAULT' in format_config:
-        new_format['DEFAULT'] = format_config['DEFAULT']
-      
-      # Migrate course-specific keys
-      for key, value in format_config.items():
-        if key == 'DEFAULT':
-          continue
-        
-        if key in abbr_to_slug:
-          new_key = abbr_to_slug[key]
-          new_format[new_key] = value
-          keys_migrated.append(f"{key} → {new_key}")
-        # else: orphaned key, not migrating (will be removed)
-      
-      # Update settings
-      settings['format'] = new_format
-      
-      # Save migrated settings
-      with open(settings_fn, 'w') as f:
-        yaml.dump(settings, f, allow_unicode=True)
-      
-      success_count += 1
-      if keys_migrated:
-        migration_details.append({
-          'email': email,
-          'keys': keys_migrated
-        })
-      
-      logger.info(f"Migrated keys for {email}: {', '.join(keys_migrated) if keys_migrated else 'no keys to migrate'}")
-      
-    except Exception as e:
-      errors.append(f"{email}: {str(e)}")
-      logger.error(f"Error migrating keys for {email}: {e}")
-  
-  logger.info(f"Admin migrated configuration keys: {success_count} successful, {len(errors)} errors")
-  
-  if errors:
-    flask.flash(f'Migrated {success_count} user settings with {len(errors)} errors', 'warning')
-    for error in errors[:5]:  # Show first 5 errors
-      flask.flash(error, 'error')
-  else:
-    flask.flash(f'Successfully migrated configuration keys for {success_count} users', 'success')
-  
-  if migration_details:
-    flask.flash(f'Migrated {sum(len(d["keys"]) for d in migration_details)} total keys', 'info')
   
   return flask.redirect('/admin')
 

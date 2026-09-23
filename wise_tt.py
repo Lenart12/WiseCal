@@ -1,10 +1,9 @@
-from playwright.sync_api import sync_playwright
 import icalendar
 import hashlib
 import datetime
 import base64
-
-WTT_API_URL = "https://www.wise-tt.com"
+import re
+import urllib.request
 
 def generate_course_slug(course_name):
     """
@@ -43,27 +42,17 @@ def generate_course_slug(course_name):
     
     return slug
 
-def download_ical(timetable, download_path):
-    with sync_playwright() as p:
-        # print("Launching browser...")
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
-        url = f"{WTT_API_URL}/wtt_{timetable['schoolcode']}/index.jsp?filterId={timetable['filterId']}"
-        response = page.goto(url, timeout=5000)
-        if not response or not response.ok:
-            raise ValueError(f"Napaka pri nalaganju {url}, status: {response.status if response else 'no response'}")
-        if page.locator('a[title="Izvoz celotnega urnika v ICS formatu  "]').count() == 0:
-            raise ValueError(f"Urnik na {url} nima aktivnih terminov.")
-        # print(f"Navigated to {url}")
-        with page.expect_download(timeout=5000) as download_info:
-            # print("Clicked on iCal export link")
-            page.click('a[title="Izvoz celotnega urnika v ICS formatu  "]', timeout=3000)
-            # print("Waiting for download to start...")
-        download = download_info.value
-        download.save_as(download_path)
-        # print(f"Downloaded iCal file to {download_path}")
-        browser.close()
-    return download_path        
+def timetable_id(url):
+    return hashlib.sha256(url.encode('utf-8')).hexdigest()[:16]
+
+def download_ical(url, download_path):
+    with urllib.request.urlopen(url, timeout=30) as response:
+        data = response.read()
+    if not data.startswith(b'BEGIN:VCALENDAR'):
+        raise ValueError(f"Povezava {url} ne vrne koledarja v ICS formatu.")
+    with open(download_path, 'wb') as fh:
+        fh.write(data)
+    return download_path
 
 class WiseSlot:
     course = "" # Course name - e.g., "Spletne tehnologije"
@@ -140,145 +129,55 @@ class WiseSlot:
             'colorId': color,
         }
 
+CTYPE_MAP = {
+    'PR': 'Predavanje',
+    'SV': 'Seminarske vaje',
+    'LV': 'Laboratorijske vaje',
+    'SE': 'Seminar',
+    'RV': 'Računalniške vaje'
+}
+
 def get_slots(ical_path):
     cal = icalendar.Calendar.from_ical(open(ical_path, 'rb').read())
     events = []
 
-    def fallback_event(component):
+    for component in cal.walk('VEVENT'):
         slot = WiseSlot()
-        slot.course = str(component.get('SUMMARY')).capitalize() + " (Fallback)"
-        slot.location = str(component.get('LOCATION'))
+        summary = str(component.get('SUMMARY')).strip()
+        # SUMMARY format: "COURSE NAME (TYPE)", TYPE may carry a suffix, e.g. "RV-NA DALJAVO"
+        match = re.match(r'^(.*?)\s*\(([^()]+)\)$', summary)
+        if match:
+            slot.course = match.group(1).capitalize()
+            ctype_base, _, ctype_suffix = match.group(2).strip().partition('-')
+            slot.ctype_abbr = ctype_base.strip()
+            slot.ctype = CTYPE_MAP.get(slot.ctype_abbr, slot.ctype_abbr)
+            if ctype_suffix.strip():
+                slot.ctype += f" ({ctype_suffix.strip().lower()})"
+        else:
+            slot.course = summary.capitalize()
+            slot.ctype_abbr = 'UN'
+            slot.ctype = 'Neznano'
+
+        abbr_ignore = ['in']
+        slot.course_abbr = "".join([word[0] for word in slot.course.split(" ") if word and word.lower() not in abbr_ignore]).upper()
+        slot.course_slug = generate_course_slug(slot.course)
+        slot.location = str(component.get('LOCATION', ''))
+
+        # DESCRIPTION format: "Predavatelji: A, B\nSkupine: X, Y"
+        fields = {}
+        for line in str(component.get('DESCRIPTION', '')).splitlines():
+            key, _, value = line.partition(':')
+            fields[key.strip()] = value.strip()
+        slot.lecturer = ", ".join(l.strip().title() for l in fields.get('Predavatelji', '').split(',') if l.strip())
+        slot.groups = [g.strip() for g in fields.get('Skupine', '').split(',') if g.strip()]
+
         slot.start_time = component.get('DTSTART').dt
         slot.end_time = component.get('DTEND').dt
-        slot.ctype = "Unknown"
-        slot.ctype_abbr = "UN"
-        slot.lecturer = "Unknown"
-        slot.groups = []
-        return slot
 
-    for component in cal.walk():
-        if component.name == "VEVENT":
-            slot = WiseSlot()
-            slot.course = str(component.get('SUMMARY')).capitalize()
-            dparts = str(component.get('DESCRIPTION')).split(", ")
-            if len(dparts) < 4:
-                print(f"Warning: DESCRIPTION field does not have enough parts: '{component.get('DESCRIPTION')}'")
-                events.append(fallback_event(component))
-                continue
-            if slot.course != dparts[0].capitalize():
-                print(f"Warning: SUMMARY and DESCRIPTION course names do not match: '{slot.course}' != '{dparts[0].capitalize()}'")
-                events.append(fallback_event(component))
-                continue
-            abbr_ignore = ['in']
-            slot.course_abbr = "".join([word[0] for word in slot.course.split(" ") if word and word.lower() not in abbr_ignore]).upper()
-            slot.course_slug = generate_course_slug(slot.course)
-            slot.ctype_abbr = dparts[1]
-            ctype_map = {
-                'PR': 'Predavanje',
-                'SV': 'Seminarske vaje',
-                'LV': 'Laboratorijske vaje',
-                'SE': 'Seminar',
-                'RV': 'Računalniške vaje'
-            }
-            slot.ctype = ctype_map.get(slot.ctype_abbr, slot.ctype_abbr)
-            slot.location = str(component.get('LOCATION'))
+        duration = slot.end_time - slot.start_time
+        if duration.total_seconds() <= 0 or duration.total_seconds() > 8 * 3600:
+            print(f"Warning: Invalid duration for event '{slot.course}' from {slot.start_time} to {slot.end_time} - skipping.")
+            continue
 
-            lecturers = []
-            groups = []
-            groups_started = False
-            lecutrers_and_groups = dparts[2:]
-
-            # We need to heuristically separate lecturers and groups from the remaining parts
-            # Assumptions:
-            # - The first part is always a lecturer
-            # - The last part is always a group
-            # - After the first part, once we start seeing groups, all subsequent parts are groups
-            # - Groups often contain digits or specific keywords
-            for i, part in enumerate(lecutrers_and_groups):
-                # First part is always lecturer
-                if i == 0:
-                    lecturers.append(part.title())
-                    # print(f"First part, adding lecturer: {part.title()}")
-                    continue
-                # Last part is always group or groups started
-                if i == len(lecutrers_and_groups) - 1 or groups_started:
-                    groups.append(part)
-                    # print(f"Adding group: {part}")
-                    continue
-
-                # Now decide based on content
-                units = part.replace('.', '').lower().split(' ')
-                # If we find a digit, we assume it's a group
-                if any(char.isdigit() for char in part):
-                    groups_started = True
-                    groups.append(part)
-                    # print(f"Found digit, adding group: {part}")
-                    continue
-
-                # Check for common lecturer indicators
-                lecturer_indicators = ['dr', 'prof', 'doc', 'asist', 'demonstrator']
-                if any(unit == indicator for unit in units for indicator in lecturer_indicators):
-                    lecturers.append(part.title())
-                    # print(f"Found lecturer indicator, adding lecturer: {part.title()}")
-                    continue
-
-                # Check for common group indicators
-                group_indicators = ['sk', 'erasmus', 'rv', 'vs', 'un', 'mag', 'izb']
-                if any(unit == indicator for unit in units for indicator in group_indicators):
-                    groups_started = True
-                    groups.append(part)
-                    # print(f"Found group indicator, adding group: {part}")
-                    continue
-
-                # If there's only one word, assume it's a group
-                if len(units) == 1:
-                    groups_started = True
-                    groups.append(part)
-                    # print(f"Single unit, assuming group, adding: {part}")
-                    continue
-
-                # Default to lecturer if none of the above matched
-                lecturers.append(part.title())
-                # print(f"Defaulting to lecturer, adding: {part.title()}")
-
-            slot.lecturer = ", ".join(lecturers)
-            slot.groups = [group.strip() for group in groups]
-
-            slot.start_time = component.get('DTSTART').dt
-            slot.end_time = component.get('DTEND').dt
-
-            duration = slot.end_time - slot.start_time
-            if duration.total_seconds() <= 0 or duration.total_seconds() > 8 * 3600:
-                print(f"Warning: Invalid duration for event '{slot.course}' from {slot.start_time} to {slot.end_time} - skipping.")
-                continue
-
-            events.append(slot)
+        events.append(slot)
     return events
-
-def get_session_filters(slots):
-    filters = set()
-    for slot in slots:
-        for group in slot.groups:
-            filters.add((slot.course, slot.ctype, group))
-    return sorted(list(filters), key=lambda x: (x[0], x[1], x[2]))
-
-
-
-import yaml
-import json
-if __name__ == "__main__":
-    slots = get_slots('calendar(2).ics')
-    # for slot in slots:
-    #     print(f"{slot.course} ({slot.ctype}) by {slot.lecturer} at {slot.location} from {slot.start_time} to {slot.end_time}, Groups: {', '.join(slot.groups)} Hash: {slot.hash()}")
-    # filters = get_session_filters(slots)
-    # for f in filters:
-    #     print(f"Course: {f[0]}, Type: {f[1]}, Group: {f[2]}")
-    groups = set([g for slot in slots for g in slot.groups])
-    print("All groups:")
-    for g in sorted(list(groups)):
-        print(f" - {g}")
-    # settings = yaml.safe_load(open('settings.yaml', 'r', encoding='utf-8'))
-    # slots_fmt = [slot.to_gcal(settings['format']) for slot in slots]
-    # slots_fmt = [slot for slot in slots_fmt if slot is not None]
-    # for slot in slots_fmt:
-    #     print(json.dumps(slot, indent=2, ensure_ascii=False))

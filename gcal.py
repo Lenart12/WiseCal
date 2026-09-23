@@ -85,6 +85,14 @@ def set_calendar_enabled(user: str, enabled: bool):
     with open(settings_fn, 'w') as fh:
         yaml.safe_dump(settings, fh)
 
+def set_force_sync(user: str, force_sync: bool):
+    settings_fn = BASE_DATA_DIR / 'settings' / f'{user}.yaml'
+    with open(settings_fn, 'r') as fh:
+        settings = yaml.safe_load(fh)
+    settings.setdefault('calendar', {})['force_sync'] = force_sync
+    with open(settings_fn, 'w') as fh:
+        yaml.safe_dump(settings, fh)
+
 def get_calendar_enabled(user: str) -> bool:
     settings_fn = BASE_DATA_DIR / 'settings' / f'{user}.yaml'
     if not settings_fn.exists():

@@ -47,12 +47,7 @@ The application will be available at `http://localhost:5187`.
    uv sync
    ```
 
-3. Install Playwright browsers:
-   ```bash
-   uv run playwright install --with-deps chromium
-   ```
-
-4. Set up environment variables and run:
+3. Set up environment variables and run:
    ```bash
    export OAUTH_CLIENT_SECRETS='{"web":{"client_id":"...","client_secret":"..."}}'
    export FLASK_SECRET_KEY=your-secret-key
@@ -69,11 +64,14 @@ The application will be available at `http://localhost:5187`.
 5. Add your redirect URI (e.g., `http://localhost:5187/oauth2callback`)
 6. Copy the client secrets JSON to `OAUTH_CLIENT_SECRETS` environment variable
 
-### Finding Your Filter ID
-1. Open [Wise TT](https://www.wise-tt.com) and navigate to your school's timetable
-2. Select your desired groups/filters
-3. Click the "Bookmark" icon
-4. Copy the Filter ID from the URL
+### Getting Your Timetable Link
+1. Open your school's timetable on [Wise TT](https://www.wise-tt.com) and select your program, field of study and year
+2. Optionally add filters for specific courses
+3. Open the menu in the top right corner and go to "Poročila" (Reports)
+4. Under "Hitri izbor" (Quick select) choose "Celo leto" (Whole year)
+5. Copy the link of the "Koledar (.ics)" button on the right
+
+The link looks like `https://www.wise-tt.com/web/feri/reports?...&format=ics`.
 
 ## Environment Variables
 
@@ -136,8 +134,7 @@ Admins will see an "Admin Dashboard" button on the home page after signing in wi
 2. Sign in with your Google account
 3. Configure your timetable by providing:
    - Calendar name
-   - School code (e.g., `um_feri`)
-   - Filter ID from Wise TT
+   - Timetable link (the "Koledar (.ics)" link from Wise TT reports)
 4. Customize event formatting (optional)
 5. Save your configuration
 

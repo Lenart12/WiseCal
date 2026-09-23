@@ -118,7 +118,7 @@
             line-height: 1.5;
         }
 
-        input[type="text"] {
+        input[type="text"], input[type="url"] {
             width: 100%;
             padding: 12px 16px;
             border: 1px solid var(--border);
@@ -129,13 +129,13 @@
             background: var(--card-bg);
         }
 
-        input[type="text"]:focus {
+        input[type="text"]:focus, input[type="url"]:focus {
             outline: none;
             border-color: var(--primary);
             box-shadow: var(--focus-ring);
         }
 
-        input[type="text"]::placeholder {
+        input[type="text"]::placeholder, input[type="url"]::placeholder {
             color: var(--text-muted);
         }
 
@@ -246,11 +246,14 @@
             </div>
 
             <div class="info-box">
-                <h3>💡 Kako dobiti šifro šole in Filter ID?</h3>
-                <p>
-                    Odpri Wise Timetable urnik, izberi želen urnik kot si vajen in klikni na ikono <strong>"Bookmark"</strong> nad urnikom.<br>
-                    Povezava vsebuje šifro šole in filter ID (odebeljeno): https://www.wise-tt.com/wtt_<strong>um_feri</strong>/index.jsp?filterId=<strong>0;389,569;0;0;</strong>
-                </p>
+                <h3>💡 Kako dobiti povezavo do urnika?</h3>
+                <ol style="padding-left: 20px;">
+                    <li>Na Wise Timetable urniku izberi program, smer in letnik.</li>
+                    <li>Po želji dodaj filtre za predmete.</li>
+                    <li>Desno zgoraj odpri meni in izberi <strong>Poročila</strong>.</li>
+                    <li>Pod <strong>Hitri izbor</strong> izberi <strong>Celo leto</strong>.</li>
+                    <li>Desno klikni na gumb <strong>Koledar (.ics)</strong> in kopiraj povezavo.</li>
+                </ol>
             </div>
 
             {% if existing_settings %}
@@ -258,34 +261,34 @@
                 <h3 style="color: #b45309;">📅 Obstoječa konfiguracija</h3>
                 <p style="margin-bottom: 12px;">
                     Že imate nastavljen koledar: <strong>{{ existing_settings.calendar.title }}</strong><br>
-                    <span style="font-size: 0.8rem;">Šola: {{ existing_settings.calendar.timetable.schoolcode }}, Filter: {{ existing_settings.calendar.timetable.filterId }}</span>
+                    {% if existing_settings.calendar.timetable.url %}
+                    <span style="font-size: 0.8rem; word-break: break-all;">Urnik: {{ existing_settings.calendar.timetable.url }}</span>
+                    {% else %}
+                    <span style="font-size: 0.8rem;">Wise Timetable je spremenil način izvoza urnika. Spodaj prilepi novo povezavo do urnika, da se sinhronizacija nadaljuje. Obstoječe nastavitve oblike dogodkov bodo ohranjene.</span>
+                    {% endif %}
                 </p>
+                {% if existing_settings.calendar.timetable.url %}
                 <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                    <a href="/configure?title={{ existing_settings.calendar.title | urlencode }}&schoolcode={{ existing_settings.calendar.timetable.schoolcode | urlencode }}&filterId={{ existing_settings.calendar.timetable.filterId | urlencode }}" class="btn btn-primary" style="padding: 10px 20px; font-size: 0.9rem;" onclick="this.classList.add('loading')">
+                    <a href="/configure?title={{ existing_settings.calendar.title | urlencode }}&url={{ existing_settings.calendar.timetable.url | urlencode }}" class="btn btn-primary" style="padding: 10px 20px; font-size: 0.9rem;" onclick="this.classList.add('loading')">
                         <span class="spinner"></span>
                         <span class="btn-text">✏️ Uredi obstoječo konfiguracijo</span>
                     </a>
                 </div>
+                {% endif %}
             </div>
             {% endif %}
 
             <form action="configure" method="get">
                 <div class="form-group">
                     <label for="title">Ime koledarja</label>
-                    <input type="text" id="title" name="title" placeholder="npr. Moj Urnik FERI" required>
+                    <input type="text" id="title" name="title" placeholder="npr. Moj Urnik FERI" value="{{ existing_settings.calendar.title if existing_settings else '' }}" required>
                     <span class="hint">Ime bo prikazano v Google Koledarju</span>
                 </div>
 
                 <div class="form-group">
-                    <label for="schoolcode">Šifra šole</label>
-                    <input type="text" id="schoolcode" name="schoolcode" placeholder="npr. um_feri" required>
-                    <span class="hint">Šifra šole na WiseTT platformi</span>
-                </div>
-
-                <div class="form-group">
-                    <label for="filterId">Filter ID</label>
-                    <input type="text" id="filterId" name="filterId" placeholder="npr. 0;389,569;0;0;" required>
-                    <span class="hint">Dobite ga s klikom na "Bookmark" ikono v WiseTT</span>
+                    <label for="url">Povezava do urnika</label>
+                    <input type="url" id="url" name="url" placeholder="https://www.wise-tt.com/web/feri/reports?...&format=ics" value="{{ existing_settings.calendar.timetable.url or '' if existing_settings else '' }}" required>
+                    <span class="hint">Povezava gumba "Koledar (.ics)" v poročilih Wise Timetable</span>
                 </div>
 
                 <button type="submit" class="btn btn-primary">

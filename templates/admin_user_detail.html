@@ -363,12 +363,8 @@
                     <span class="info-value">{{ settings.calendar.title }}</span>
                 </div>
                 <div class="info-row">
-                    <span class="info-label">School Code</span>
-                    <span class="info-value"><code>{{ settings.calendar.timetable.schoolcode }}</code></span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Filter ID</span>
-                    <span class="info-value"><code>{{ settings.calendar.timetable.filterId }}</code></span>
+                    <span class="info-label">Timetable URL</span>
+                    <span class="info-value"><code style="word-break: break-all;">{{ settings.calendar.timetable.url or 'N/A' }}</code></span>
                 </div>
                 <div class="info-row">
                     <span class="info-label">Force Sync</span>

@@ -4,6 +4,7 @@ import yaml
 import filecmp
 import logging
 import copy
+import time
 from google.auth.exceptions import RefreshError
 
 # Configure logging
@@ -12,6 +13,51 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+BATCH_SIZE = 1000
+MAX_ATTEMPTS = 5
+
+def error_status(exception):
+    return getattr(getattr(exception, 'resp', None), 'status', None)
+
+def is_transient(exception):
+    status = error_status(exception)
+    if status in (429, 500, 502, 503, 504):
+        return True
+    reasons = [d.get('reason') for d in (getattr(exception, 'error_details', None) or []) if isinstance(d, dict)]
+    return status == 403 and any(r in ('rateLimitExceeded', 'userRateLimitExceeded') for r in reasons)
+
+def execute_batched(service, requests):
+    """Execute {event_id: request_factory} in batches, retrying transient errors with backoff.
+    Returns {event_id: exception} for requests that ultimately failed."""
+    pending = dict(requests)
+    errors = {}
+    for attempt in range(MAX_ATTEMPTS):
+        if attempt > 0:
+            logger.info(f"Retrying {len(pending)} requests after transient errors (attempt {attempt + 1}/{MAX_ATTEMPTS})")
+            time.sleep(2 ** attempt)
+        retry = {}
+        def callback(event_id, _, exception):
+            if exception is None:
+                errors.pop(event_id, None)
+                return
+            errors[event_id] = exception
+            if is_transient(exception):
+                retry[event_id] = pending[event_id]
+        ids = list(pending)
+        for i in range(0, len(ids), BATCH_SIZE):
+            batch = service.new_batch_http_request(callback=callback)
+            for event_id in ids[i:i + BATCH_SIZE]:
+                batch.add(pending[event_id](), request_id=event_id)
+            batch.execute()
+        pending = retry
+        if not pending:
+            break
+    return errors
+
+def log_errors(action, errors):
+    for event_id, exception in errors.items():
+        logger.error(f"Failed to {action} event {event_id}: {getattr(exception, 'content', exception)}")
 
 def sync_slots(slots, settings):
     owner = settings['calendar']['owner']
@@ -52,117 +98,38 @@ def sync_slots(slots, settings):
         cal_id = gcal.create_calendar(owner, settings['calendar']['title'])
         logger.info(f"Created new calendar for {owner}: {cal_id}")
 
-    # Track successfully processed events
-    inserted_ids = []
-    deleted_ids = []
-    insert_errors = []
-    delete_errors = []
-    events_needing_update = []
-    
-    def make_insert_callback(slot_id):
-        def callback(_, __, exception):
-            if exception is not None:
-                # 409 errors on insert mean event already exists - we'll update it
-                if hasattr(exception, 'resp') and exception.resp.status == 409:
-                    events_needing_update.append(slot_id)
-                    logger.debug(f"Event {slot_id} already exists (409), will update instead")
-                else:
-                    insert_errors.append((slot_id, exception))
-                    error_msg = getattr(exception, 'content', str(exception)) if exception else 'Unknown error'
-                    logger.error(f"Failed to insert event {slot_id}: {error_msg}")
-            else:
-                inserted_ids.append(slot_id)
-        return callback
+    insert_errors = execute_batched(service, {
+        slot['id']: lambda slot=slot: service.events().insert(calendarId=cal_id, body=slot)
+        for slot in to_insert
+    })
 
-    def make_delete_callback(slot_id):
-        def callback(_, __, exception):
-            if exception is not None:
-                # 404 errors on delete are okay - event already gone
-                if hasattr(exception, 'resp') and exception.resp.status == 404:
-                    deleted_ids.append(slot_id)
-                else:
-                    delete_errors.append((slot_id, exception))
-                    error_msg = getattr(exception, 'content', str(exception)) if exception else 'Unknown error'
-                    logger.error(f"Failed to delete event {slot_id}: {error_msg}")
-            else:
-                deleted_ids.append(slot_id)
-        return callback
+    # 409 on insert means the event already exists - update it instead
+    conflicts = {event_id for event_id, e in insert_errors.items() if error_status(e) == 409}
+    if conflicts:
+        logger.info(f"Updating {len(conflicts)} existing events for {owner}")
+        update_errors = execute_batched(service, {
+            slot['id']: lambda slot=slot: service.events().update(calendarId=cal_id, eventId=slot['id'], body=slot)
+            for slot in to_insert if slot['id'] in conflicts
+        })
+        for event_id in conflicts:
+            insert_errors.pop(event_id)
+        insert_errors.update(update_errors)
 
-    BATCH_SIZE = 1000
-    insert_idx = 0
-    delete_idx = 0
-    while insert_idx < len(to_insert) or delete_idx < len(to_delete):
-        batch = service.new_batch_http_request()
-        batch_count = 0
+    delete_errors = execute_batched(service, {
+        event_id: lambda event_id=event_id: service.events().delete(calendarId=cal_id, eventId=event_id)
+        for event_id in to_delete
+    })
+    # 404 on delete is fine - event is already gone
+    delete_errors = {event_id: e for event_id, e in delete_errors.items() if error_status(e) != 404}
 
-        # Add inserts to batch
-        while insert_idx < len(to_insert) and batch_count < BATCH_SIZE:
-            slot = to_insert[insert_idx]
-            batch.add(
-                service.events().insert(calendarId=cal_id, body=slot),
-                callback=make_insert_callback(slot['id'])
-            )
-            insert_idx += 1
-            batch_count += 1
+    log_errors('insert', insert_errors)
+    log_errors('delete', delete_errors)
 
-        # Add deletes to batch
-        while delete_idx < len(to_delete) and batch_count < BATCH_SIZE:
-            slot_id = to_delete[delete_idx]
-            batch.add(
-                service.events().delete(calendarId=cal_id, eventId=slot_id),
-                callback=make_delete_callback(slot_id)
-            )
-            delete_idx += 1
-            batch_count += 1
+    inserted_ids = [slot['id'] for slot in to_insert if slot['id'] not in insert_errors]
+    deleted_ids = [event_id for event_id in to_delete if event_id not in delete_errors]
 
-        batch.execute()
-
-    # Handle events that need updating (got 409 conflict on insert)
-    if events_needing_update:
-        logger.info(f"Updating {len(events_needing_update)} existing events for {owner}")
-        updated_ids = []
-        update_errors = []
-        
-        def make_update_callback(slot_id):
-            def callback(_, __, exception):
-                if exception is not None:
-                    update_errors.append((slot_id, exception))
-                    error_msg = getattr(exception, 'content', str(exception)) if exception else 'Unknown error'
-                    logger.error(f"Failed to update event {slot_id}: {error_msg}")
-                else:
-                    updated_ids.append(slot_id)
-            return callback
-        
-        # Process updates in batches
-        update_idx = 0
-        slot_data_map = {slot['id']: slot for slot in to_insert if slot['id'] in events_needing_update}
-
-        while update_idx < len(events_needing_update):
-            batch = service.new_batch_http_request()
-            batch_count = 0
-            
-            while update_idx < len(events_needing_update) and batch_count < BATCH_SIZE:
-                slot_id = events_needing_update[update_idx]
-                slot_data = slot_data_map[slot_id]
-                batch.add(
-                    service.events().update(calendarId=cal_id, eventId=slot_id, body=slot_data),
-                    callback=make_update_callback(slot_id)
-                )
-                update_idx += 1
-                batch_count += 1
-            
-            batch.execute()
-        
-        # Add successfully updated events to inserted_ids
-        inserted_ids.extend(updated_ids)
-        # Add update errors to insert_errors
-        insert_errors.extend(update_errors)
-        
-        logger.info(f"Updated {len(updated_ids)} events, {len(update_errors)} update failures")
-
-    # Update synced IDs: keep synced + successfully inserted - successfully deleted
-    final_synced_ids = set(synced) | set(inserted_ids)
-    final_synced_ids -= set(deleted_ids)
+    # Events that failed to delete stay tracked so they are retried on the next sync
+    final_synced_ids = set(synced) | set(inserted_ids) | set(delete_errors)
     gcal.save_synced_event_ids(owner, list(final_synced_ids))
     gcal.set_last_update_time(owner)
 
@@ -174,6 +141,8 @@ def sync_slots(slots, settings):
             logger.error(f"Calendar {cal_id} for {owner} no longer exists. Disabling calendar sync.")
             gcal.set_calendar_enabled(owner, False)
             gcal.delete_calendar_id(owner)
+        else:
+            gcal.set_force_sync(owner, True)
     else:
         logger.info(f"Sync completed for {owner}: {len(inserted_ids)} inserted, {len(deleted_ids)} deleted")
 
@@ -185,12 +154,11 @@ def main():
     for settings_fn in settings_dir.glob('*.yaml'):
         settings = yaml.safe_load(open(settings_fn, 'r'))
         if settings.get('calendar', {}).get('enabled', False):
-            schoolcode = settings['calendar'].get('timetable', {}).get('schoolcode')
-            filterId = settings['calendar'].get('timetable', {}).get('filterId')
-            if not schoolcode or not filterId:
-                logger.warning(f"Skipping settings file {settings_fn} due to missing schoolcode or filterId")
+            url = settings['calendar'].get('timetable', {}).get('url')
+            if not url:
+                logger.warning(f"Skipping settings file {settings_fn} due to missing timetable url")
                 continue
-            jobs.setdefault(schoolcode, {}).setdefault(filterId, []).append(settings)
+            jobs.setdefault(url, []).append(settings)
             # Reset force_sync after use
             if settings['calendar'].get('force_sync', False):
                 logger.info(f"Force sync enabled for {settings['calendar']['owner']}")
@@ -200,45 +168,41 @@ def main():
                     yaml.safe_dump(new_settings, f)
             
     
-    total_users = sum(len(users) for sc in jobs.values() for users in sc.values())
+    total_users = sum(len(users) for users in jobs.values())
     logger.debug(f"Found {total_users} enabled calendars to sync")
     
     calendar_updated = False
-    for schoolcode in jobs:
-        for filterId in jobs[schoolcode]:
-            tt_filename = schoolcode + "_" + filterId
-            logger.debug(f"Downloading timetable: {schoolcode}, {filterId}")
+    for url, users in jobs.items():
+        tt_filename = wise_tt.timetable_id(url)
+        logger.debug(f"Downloading timetable: {url}")
+        try:
+            new_tt = wise_tt.download_ical(url, gcal.BASE_DATA_DIR / 'calendars' / f"{tt_filename}.new.ics")
+        except Exception as e:
+            logger.error(f"Failed to download timetable {url}: {str(e).splitlines()[0].strip()}")
+            continue
+        old_tt = gcal.BASE_DATA_DIR / 'calendars' / f"{tt_filename}.ics"
+
+        has_force_sync = any(settings.get('calendar', {}).get('force_sync', False) for settings in users)
+        is_same = old_tt.exists() and filecmp.cmp(old_tt, new_tt)
+        # If the old and new files are the same, delete the new one and continue
+        if not has_force_sync and is_same:
+            new_tt.unlink()
+            logger.debug(f"No changes in timetable: {url}")
+            continue
+
+        slots = wise_tt.get_slots(new_tt)
+        logger.info(f"Timetable changed: {url} - {len(slots)} slots")
+        for settings in users:
+            if is_same and not settings.get('calendar', {}).get('force_sync', False):
+                logger.debug(f"Skipping sync for {settings['calendar']['owner']} as there are no changes")
+                continue
             try:
-                new_tt = wise_tt.download_ical(
-                    {'schoolcode': schoolcode, 'filterId': filterId},
-                    gcal.BASE_DATA_DIR / 'calendars' / f"{tt_filename}.new.ics"
-                )
+                sync_slots(slots, settings)
+                calendar_updated = True
             except Exception as e:
-                logger.error(f"Failed to download timetable for {schoolcode}, {filterId}: {str(e).splitlines()[0].strip()}")
-                continue
-            old_tt = gcal.BASE_DATA_DIR / 'calendars' / f"{tt_filename}.ics"
+                logger.error(f"Error syncing slots for {settings['calendar']['owner']}: {e}")
 
-            has_force_sync = any(settings.get('calendar', {}).get('force_sync', False) for settings in jobs[schoolcode][filterId])
-            is_same = old_tt.exists() and filecmp.cmp(old_tt, new_tt)
-            # If the old and new files are the same, delete the new one and continue
-            if not has_force_sync and is_same:
-                new_tt.unlink()
-                logger.debug(f"No changes in timetable: {schoolcode}, {filterId}")
-                continue
-
-            slots = wise_tt.get_slots(new_tt)
-            logger.info(f"Timetable changed: {schoolcode}, {filterId} - {len(slots)} slots")
-            for settings in jobs[schoolcode][filterId]:
-                if is_same and not settings.get('calendar', {}).get('force_sync', False):
-                    logger.debug(f"Skipping sync for {settings['calendar']['owner']} as there are no changes")
-                    continue
-                try:
-                    sync_slots(slots, settings)
-                    calendar_updated = True
-                except Exception as e:
-                    logger.error(f"Error syncing slots for {settings['calendar']['owner']}: {e}")
-
-            new_tt.rename(old_tt)
+        new_tt.rename(old_tt)
     
     logger.debug("WiseCal cron job completed")
     return calendar_updated
